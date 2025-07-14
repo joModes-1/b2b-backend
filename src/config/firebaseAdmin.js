@@ -2,7 +2,7 @@ const admin = require('firebase-admin');
 
 try {
   // Load service account from environment variable
-  const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
+  const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_BASE64);
 
   admin.initializeApp({
     credential: admin.credential.cert(serviceAccount),
