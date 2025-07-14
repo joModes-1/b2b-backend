@@ -6,6 +6,8 @@ const { uploadToCloudinary, deleteFromCloudinary } = require('../utils/cloudinar
 
 // Get all products (public)
 exports.getAllProducts = async (req, res) => {
+  const page = Number(req.query.page) || 1;
+  const limit = Number(req.query.limit) || 20;
   try {
     console.log('--- Executing getAllProducts ---');
     // Advanced search: use aggregation to score and sort by relevance

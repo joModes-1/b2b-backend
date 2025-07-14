@@ -2,10 +2,11 @@
 /node_modules
 
 # environment variables
-
+.env
 
 # Firebase service account
 firebase-service-account.json
+src/config/serviceAccountKey.json
 
 # logs
 npm-debug.log*
