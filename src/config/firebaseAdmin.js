@@ -1,7 +1,8 @@
 const admin = require('firebase-admin');
 
 try {
-  const serviceAccount = require('./serviceAccountKey.json');
+  // Load service account from environment variable
+  const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
 
   admin.initializeApp({
     credential: admin.credential.cert(serviceAccount),
@@ -10,9 +11,9 @@ try {
   console.log('Firebase Admin SDK initialized successfully.');
 } catch (error) {
   console.error(
-    'CRITICAL ERROR: Failed to initialize Firebase Admin SDK. \n' +
-    'Make sure your `serviceAccountKey.json` is placed in the `backend/src/config/` directory. \n' +
-    'The application cannot start without it. \n',
+    'CRITICAL ERROR: Failed to initialize Firebase Admin SDK.\n' +
+    'Make sure your FIREBASE_SERVICE_ACCOUNT environment variable is set with the correct JSON.\n' +
+    'The application cannot start without it.\n',
     error
   );
   process.exit(1); // Exit if the admin SDK fails to initialize

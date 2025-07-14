@@ -5,8 +5,12 @@ const Product = require('./src/models/Product');
 const User = require('./src/models/User');
 
 // --- Database Connection ---
-// IMPORTANT: Replace with your actual connection string if different
-const dbURI = 'mongodb://localhost:27017/b2b-platform';
+const dbURI = process.env.MONGODB_URI;
+
+if (!dbURI) {
+  console.error('FATAL ERROR: MONGODB_URI is not defined in environment variables.');
+  process.exit(1);
+}
 
 mongoose.connect(dbURI, {
   useNewUrlParser: true,
