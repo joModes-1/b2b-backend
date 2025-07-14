@@ -1,0 +1,1082 @@
+[
+  {
+    "name": "Salt Brand 19 1kg",
+    "category": "Salt",
+    "price": 124704,
+    "image": "https://picsum.photos/seed/product0/300/300",
+    "description": "High quality salt suitable for wholesale and retail.",
+    "seller": "vendora@example.com",
+    "district": "Jinja"
+  },
+  {
+    "name": "Toilet Paper Brand 29 25kg",
+    "category": "Toilet Paper",
+    "price": 72738,
+    "image": "https://picsum.photos/seed/product1/300/300",
+    "description": "High quality toilet paper suitable for wholesale and retail.",
+    "seller": "vendorb@example.com",
+    "district": "Wakiso"
+  },
+  {
+    "name": "Cooking Oil Brand 13 2kg",
+    "category": "Cooking Oil",
+    "price": 52632,
+    "image": "https://picsum.photos/seed/product2/300/300",
+    "description": "High quality cooking oil suitable for wholesale and retail.",
+    "seller": "vendord@example.com",
+    "district": "Wakiso"
+  },
+  {
+    "name": "Rice Brand 38 20L",
+    "category": "Rice",
+    "price": 99426,
+    "image": "https://picsum.photos/seed/product3/300/300",
+    "description": "High quality rice suitable for wholesale and retail.",
+    "seller": "vendorb@example.com",
+    "district": "Kampala"
+  },
+  {
+    "name": "Washing Powder Brand 10 5kg",
+    "category": "Washing Powder",
+    "price": 148357,
+    "image": "https://picsum.photos/seed/product4/300/300",
+    "description": "High quality washing powder suitable for wholesale and retail.",
+    "seller": "vendora@example.com",
+    "district": "Wakiso"
+  },
+  {
+    "name": "Toilet Paper Brand 46 10L",
+    "category": "Toilet Paper",
+    "price": 58223,
+    "image": "https://picsum.photos/seed/product5/300/300",
+    "description": "High quality toilet paper suitable for wholesale and retail.",
+    "seller": "vendorb@example.com",
+    "district": "Wakiso"
+  },
+  {
+    "name": "Flour Brand 1 25kg",
+    "category": "Flour",
+    "price": 20340,
+    "image": "https://picsum.photos/seed/product6/300/300",
+    "description": "High quality flour suitable for wholesale and retail.",
+    "seller": "vendorc@example.com",
+    "district": "Kampala"
+  },
+  {
+    "name": "Maize Flour Brand 18 20L",
+    "category": "Maize Flour",
+    "price": 10019,
+    "image": "https://picsum.photos/seed/product7/300/300",
+    "description": "High quality maize flour suitable for wholesale and retail.",
+    "seller": "vendorb@example.com",
+    "district": "Kampala"
+  },
+  {
+    "name": "Soap Brand 37 10L",
+    "category": "Soap",
+    "price": 142691,
+    "image": "https://picsum.photos/seed/product8/300/300",
+    "description": "High quality soap suitable for wholesale and retail.",
+    "seller": "vendorb@example.com",
+    "district": "Mukono"
+  },
+  {
+    "name": "Toilet Paper Brand 3 20L",
+    "category": "Toilet Paper",
+    "price": 97614,
+    "image": "https://picsum.photos/seed/product9/300/300",
+    "description": "High quality toilet paper suitable for wholesale and retail.",
+    "seller": "vendora@example.com",
+    "district": "Mbarara"
+  },
+  {
+    "name": "Biscuits Brand 7 10L",
+    "category": "Biscuits",
+    "price": 146097,
+    "image": "https://picsum.photos/seed/product10/300/300",
+    "description": "High quality biscuits suitable for wholesale and retail.",
+    "seller": "vendorb@example.com",
+    "district": "Jinja"
+  },
+  {
+    "name": "Cooking Oil Brand 42 25kg",
+    "category": "Cooking Oil",
+    "price": 69087,
+    "image": "https://picsum.photos/seed/product11/300/300",
+    "description": "High quality cooking oil suitable for wholesale and retail.",
+    "seller": "vendorb@example.com",
+    "district": "Jinja"
+  },
+  {
+    "name": "Flour Brand 41 2kg",
+    "category": "Flour",
+    "price": 22746,
+    "image": "https://picsum.photos/seed/product12/300/300",
+    "description": "High quality flour suitable for wholesale and retail.",
+    "seller": "vendorb@example.com",
+    "district": "Kampala"
+  },
+  {
+    "name": "Toilet Paper Brand 10 1kg",
+    "category": "Toilet Paper",
+    "price": 71068,
+    "image": "https://picsum.photos/seed/product13/300/300",
+    "description": "High quality toilet paper suitable for wholesale and retail.",
+    "seller": "vendore@example.com",
+    "district": "Mbarara"
+  },
+  {
+    "name": "Rice Brand 12 25kg",
+    "category": "Rice",
+    "price": 97165,
+    "image": "https://picsum.photos/seed/product14/300/300",
+    "description": "High quality rice suitable for wholesale and retail.",
+    "seller": "vendora@example.com",
+    "district": "Kampala"
+  },
+  {
+    "name": "Soap Brand 50 1kg",
+    "category": "Soap",
+    "price": 127374,
+    "image": "https://picsum.photos/seed/product15/300/300",
+    "description": "High quality soap suitable for wholesale and retail.",
+    "seller": "vendorc@example.com",
+    "district": "Mukono"
+  },
+  {
+    "name": "Rice Brand 13 10L",
+    "category": "Rice",
+    "price": 117365,
+    "image": "https://picsum.photos/seed/product16/300/300",
+    "description": "High quality rice suitable for wholesale and retail.",
+    "seller": "vendorb@example.com",
+    "district": "Mukono"
+  },
+  {
+    "name": "Biscuits Brand 8 2kg",
+    "category": "Biscuits",
+    "price": 98851,
+    "image": "https://picsum.photos/seed/product17/300/300",
+    "description": "High quality biscuits suitable for wholesale and retail.",
+    "seller": "vendord@example.com",
+    "district": "Wakiso"
+  },
+  {
+    "name": "Rice Brand 1 1kg",
+    "category": "Rice",
+    "price": 144711,
+    "image": "https://picsum.photos/seed/product18/300/300",
+    "description": "High quality rice suitable for wholesale and retail.",
+    "seller": "vendora@example.com",
+    "district": "Mukono"
+  },
+  {
+    "name": "Soap Brand 5 10L",
+    "category": "Soap",
+    "price": 86515,
+    "image": "https://picsum.photos/seed/product19/300/300",
+    "description": "High quality soap suitable for wholesale and retail.",
+    "seller": "vendore@example.com",
+    "district": "Kampala"
+  },
+  {
+    "name": "Maize Flour Brand 18 5kg",
+    "category": "Maize Flour",
+    "price": 129220,
+    "image": "https://picsum.photos/seed/product20/300/300",
+    "description": "High quality maize flour suitable for wholesale and retail.",
+    "seller": "vendord@example.com",
+    "district": "Wakiso"
+  },
+  {
+    "name": "Salt Brand 36 1kg",
+    "category": "Salt",
+    "price": 52741,
+    "image": "https://picsum.photos/seed/product21/300/300",
+    "description": "High quality salt suitable for wholesale and retail.",
+    "seller": "vendorc@example.com",
+    "district": "Mbarara"
+  },
+  {
+    "name": "Maize Flour Brand 39 10L",
+    "category": "Maize Flour",
+    "price": 43499,
+    "image": "https://picsum.photos/seed/product22/300/300",
+    "description": "High quality maize flour suitable for wholesale and retail.",
+    "seller": "vendorc@example.com",
+    "district": "Mbarara"
+  },
+  {
+    "name": "Salt Brand 23 25kg",
+    "category": "Salt",
+    "price": 49838,
+    "image": "https://picsum.photos/seed/product23/300/300",
+    "description": "High quality salt suitable for wholesale and retail.",
+    "seller": "vendore@example.com",
+    "district": "Mukono"
+  },
+  {
+    "name": "Salt Brand 48 2kg",
+    "category": "Salt",
+    "price": 126641,
+    "image": "https://picsum.photos/seed/product24/300/300",
+    "description": "High quality salt suitable for wholesale and retail.",
+    "seller": "vendord@example.com",
+    "district": "Mukono"
+  },
+  {
+    "name": "Rice Brand 24 25kg",
+    "category": "Rice",
+    "price": 116351,
+    "image": "https://picsum.photos/seed/product25/300/300",
+    "description": "High quality rice suitable for wholesale and retail.",
+    "seller": "vendorc@example.com",
+    "district": "Jinja"
+  },
+  {
+    "name": "Soap Brand 5 1kg",
+    "category": "Soap",
+    "price": 124705,
+    "image": "https://picsum.photos/seed/product26/300/300",
+    "description": "High quality soap suitable for wholesale and retail.",
+    "seller": "vendorc@example.com",
+    "district": "Wakiso"
+  },
+  {
+    "name": "Salt Brand 25 10L",
+    "category": "Salt",
+    "price": 89187,
+    "image": "https://picsum.photos/seed/product27/300/300",
+    "description": "High quality salt suitable for wholesale and retail.",
+    "seller": "vendore@example.com",
+    "district": "Kampala"
+  },
+  {
+    "name": "Flour Brand 47 20L",
+    "category": "Flour",
+    "price": 53310,
+    "image": "https://picsum.photos/seed/product28/300/300",
+    "description": "High quality flour suitable for wholesale and retail.",
+    "seller": "vendora@example.com",
+    "district": "Mbarara"
+  },
+  {
+    "name": "Maize Flour Brand 19 10L",
+    "category": "Maize Flour",
+    "price": 31078,
+    "image": "https://picsum.photos/seed/product29/300/300",
+    "description": "High quality maize flour suitable for wholesale and retail.",
+    "seller": "vendord@example.com",
+    "district": "Jinja"
+  },
+  {
+    "name": "Biscuits Brand 27 20L",
+    "category": "Biscuits",
+    "price": 93325,
+    "image": "https://picsum.photos/seed/product30/300/300",
+    "description": "High quality biscuits suitable for wholesale and retail.",
+    "seller": "vendorb@example.com",
+    "district": "Wakiso"
+  },
+  {
+    "name": "Rice Brand 28 2kg",
+    "category": "Rice",
+    "price": 89571,
+    "image": "https://picsum.photos/seed/product31/300/300",
+    "description": "High quality rice suitable for wholesale and retail.",
+    "seller": "vendorb@example.com",
+    "district": "Kampala"
+  },
+  {
+    "name": "Flour Brand 33 5kg",
+    "category": "Flour",
+    "price": 63742,
+    "image": "https://picsum.photos/seed/product32/300/300",
+    "description": "High quality flour suitable for wholesale and retail.",
+    "seller": "vendora@example.com",
+    "district": "Kampala"
+  },
+  {
+    "name": "Sugar Brand 7 5kg",
+    "category": "Sugar",
+    "price": 135564,
+    "image": "https://picsum.photos/seed/product33/300/300",
+    "description": "High quality sugar suitable for wholesale and retail.",
+    "seller": "vendore@example.com",
+    "district": "Kampala"
+  },
+  {
+    "name": "Biscuits Brand 3 20L",
+    "category": "Biscuits",
+    "price": 34129,
+    "image": "https://picsum.photos/seed/product34/300/300",
+    "description": "High quality biscuits suitable for wholesale and retail.",
+    "seller": "vendord@example.com",
+    "district": "Wakiso"
+  },
+  {
+    "name": "Salt Brand 35 10L",
+    "category": "Salt",
+    "price": 35405,
+    "image": "https://picsum.photos/seed/product35/300/300",
+    "description": "High quality salt suitable for wholesale and retail.",
+    "seller": "vendord@example.com",
+    "district": "Wakiso"
+  },
+  {
+    "name": "Cooking Oil Brand 12 10L",
+    "category": "Cooking Oil",
+    "price": 55837,
+    "image": "https://picsum.photos/seed/product36/300/300",
+    "description": "High quality cooking oil suitable for wholesale and retail.",
+    "seller": "vendord@example.com",
+    "district": "Mbarara"
+  },
+  {
+    "name": "Rice Brand 13 1kg",
+    "category": "Rice",
+    "price": 57419,
+    "image": "https://picsum.photos/seed/product37/300/300",
+    "description": "High quality rice suitable for wholesale and retail.",
+    "seller": "vendore@example.com",
+    "district": "Mbarara"
+  },
+  {
+    "name": "Washing Powder Brand 7 10L",
+    "category": "Washing Powder",
+    "price": 17563,
+    "image": "https://picsum.photos/seed/product38/300/300",
+    "description": "High quality washing powder suitable for wholesale and retail.",
+    "seller": "vendora@example.com",
+    "district": "Jinja"
+  },
+  {
+    "name": "Flour Brand 22 25kg",
+    "category": "Flour",
+    "price": 135375,
+    "image": "https://picsum.photos/seed/product39/300/300",
+    "description": "High quality flour suitable for wholesale and retail.",
+    "seller": "vendorc@example.com",
+    "district": "Kampala"
+  },
+  {
+    "name": "Salt Brand 9 1kg",
+    "category": "Salt",
+    "price": 123425,
+    "image": "https://picsum.photos/seed/product40/300/300",
+    "description": "High quality salt suitable for wholesale and retail.",
+    "seller": "vendora@example.com",
+    "district": "Jinja"
+  },
+  {
+    "name": "Washing Powder Brand 5 20L",
+    "category": "Washing Powder",
+    "price": 107079,
+    "image": "https://picsum.photos/seed/product41/300/300",
+    "description": "High quality washing powder suitable for wholesale and retail.",
+    "seller": "vendore@example.com",
+    "district": "Kampala"
+  },
+  {
+    "name": "Salt Brand 34 5kg",
+    "category": "Salt",
+    "price": 141467,
+    "image": "https://picsum.photos/seed/product42/300/300",
+    "description": "High quality salt suitable for wholesale and retail.",
+    "seller": "vendord@example.com",
+    "district": "Jinja"
+  },
+  {
+    "name": "Salt Brand 2 20L",
+    "category": "Salt",
+    "price": 24254,
+    "image": "https://picsum.photos/seed/product43/300/300",
+    "description": "High quality salt suitable for wholesale and retail.",
+    "seller": "vendorc@example.com",
+    "district": "Wakiso"
+  },
+  {
+    "name": "Salt Brand 3 25kg",
+    "category": "Salt",
+    "price": 147928,
+    "image": "https://picsum.photos/seed/product44/300/300",
+    "description": "High quality salt suitable for wholesale and retail.",
+    "seller": "vendora@example.com",
+    "district": "Mbarara"
+  },
+  {
+    "name": "Soap Brand 7 10L",
+    "category": "Soap",
+    "price": 12550,
+    "image": "https://picsum.photos/seed/product45/300/300",
+    "description": "High quality soap suitable for wholesale and retail.",
+    "seller": "vendora@example.com",
+    "district": "Wakiso"
+  },
+  {
+    "name": "Maize Flour Brand 31 2kg",
+    "category": "Maize Flour",
+    "price": 133303,
+    "image": "https://picsum.photos/seed/product46/300/300",
+    "description": "High quality maize flour suitable for wholesale and retail.",
+    "seller": "vendorc@example.com",
+    "district": "Wakiso"
+  },
+  {
+    "name": "Biscuits Brand 41 20L",
+    "category": "Biscuits",
+    "price": 143450,
+    "image": "https://picsum.photos/seed/product47/300/300",
+    "description": "High quality biscuits suitable for wholesale and retail.",
+    "seller": "vendorc@example.com",
+    "district": "Mukono"
+  },
+  {
+    "name": "Washing Powder Brand 15 2kg",
+    "category": "Washing Powder",
+    "price": 36401,
+    "image": "https://picsum.photos/seed/product48/300/300",
+    "description": "High quality washing powder suitable for wholesale and retail.",
+    "seller": "vendorb@example.com",
+    "district": "Kampala"
+  },
+  {
+    "name": "Toilet Paper Brand 48 5kg",
+    "category": "Toilet Paper",
+    "price": 99488,
+    "image": "https://picsum.photos/seed/product49/300/300",
+    "description": "High quality toilet paper suitable for wholesale and retail.",
+    "seller": "vendora@example.com",
+    "district": "Mbarara"
+  },
+  {
+    "name": "Cooking Oil Brand 30 5kg",
+    "category": "Cooking Oil",
+    "price": 58757,
+    "image": "https://picsum.photos/seed/product50/300/300",
+    "description": "High quality cooking oil suitable for wholesale and retail.",
+    "seller": "vendore@example.com",
+    "district": "Mukono"
+  },
+  {
+    "name": "Rice Brand 20 10L",
+    "category": "Rice",
+    "price": 104367,
+    "image": "https://picsum.photos/seed/product51/300/300",
+    "description": "High quality rice suitable for wholesale and retail.",
+    "seller": "vendorc@example.com",
+    "district": "Mbarara"
+  },
+  {
+    "name": "Salt Brand 6 10L",
+    "category": "Salt",
+    "price": 103142,
+    "image": "https://picsum.photos/seed/product52/300/300",
+    "description": "High quality salt suitable for wholesale and retail.",
+    "seller": "vendorb@example.com",
+    "district": "Mbarara"
+  },
+  {
+    "name": "Soap Brand 18 20L",
+    "category": "Soap",
+    "price": 95407,
+    "image": "https://picsum.photos/seed/product53/300/300",
+    "description": "High quality soap suitable for wholesale and retail.",
+    "seller": "vendorb@example.com",
+    "district": "Kampala"
+  },
+  {
+    "name": "Soap Brand 11 2kg",
+    "category": "Soap",
+    "price": 147066,
+    "image": "https://picsum.photos/seed/product54/300/300",
+    "description": "High quality soap suitable for wholesale and retail.",
+    "seller": "vendord@example.com",
+    "district": "Kampala"
+  },
+  {
+    "name": "Soap Brand 9 10L",
+    "category": "Soap",
+    "price": 141778,
+    "image": "https://picsum.photos/seed/product55/300/300",
+    "description": "High quality soap suitable for wholesale and retail.",
+    "seller": "vendorb@example.com",
+    "district": "Kampala"
+  },
+  {
+    "name": "Washing Powder Brand 7 2kg",
+    "category": "Washing Powder",
+    "price": 72441,
+    "image": "https://picsum.photos/seed/product56/300/300",
+    "description": "High quality washing powder suitable for wholesale and retail.",
+    "seller": "vendorc@example.com",
+    "district": "Mukono"
+  },
+  {
+    "name": "Cooking Oil Brand 16 5kg",
+    "category": "Cooking Oil",
+    "price": 75206,
+    "image": "https://picsum.photos/seed/product57/300/300",
+    "description": "High quality cooking oil suitable for wholesale and retail.",
+    "seller": "vendorb@example.com",
+    "district": "Kampala"
+  },
+  {
+    "name": "Maize Flour Brand 39 1kg",
+    "category": "Maize Flour",
+    "price": 53762,
+    "image": "https://picsum.photos/seed/product58/300/300",
+    "description": "High quality maize flour suitable for wholesale and retail.",
+    "seller": "vendorc@example.com",
+    "district": "Wakiso"
+  },
+  {
+    "name": "Salt Brand 28 10L",
+    "category": "Salt",
+    "price": 30628,
+    "image": "https://picsum.photos/seed/product59/300/300",
+    "description": "High quality salt suitable for wholesale and retail.",
+    "seller": "vendore@example.com",
+    "district": "Mukono"
+  },
+  {
+    "name": "Biscuits Brand 46 10L",
+    "category": "Biscuits",
+    "price": 8625,
+    "image": "https://picsum.photos/seed/product60/300/300",
+    "description": "High quality biscuits suitable for wholesale and retail.",
+    "seller": "vendorb@example.com",
+    "district": "Mukono"
+  },
+  {
+    "name": "Salt Brand 29 20L",
+    "category": "Salt",
+    "price": 6098,
+    "image": "https://picsum.photos/seed/product61/300/300",
+    "description": "High quality salt suitable for wholesale and retail.",
+    "seller": "vendorc@example.com",
+    "district": "Mukono"
+  },
+  {
+    "name": "Toilet Paper Brand 11 1kg",
+    "category": "Toilet Paper",
+    "price": 74223,
+    "image": "https://picsum.photos/seed/product62/300/300",
+    "description": "High quality toilet paper suitable for wholesale and retail.",
+    "seller": "vendorb@example.com",
+    "district": "Wakiso"
+  },
+  {
+    "name": "Washing Powder Brand 1 25kg",
+    "category": "Washing Powder",
+    "price": 82544,
+    "image": "https://picsum.photos/seed/product63/300/300",
+    "description": "High quality washing powder suitable for wholesale and retail.",
+    "seller": "vendora@example.com",
+    "district": "Jinja"
+  },
+  {
+    "name": "Soap Brand 4 5kg",
+    "category": "Soap",
+    "price": 62287,
+    "image": "https://picsum.photos/seed/product64/300/300",
+    "description": "High quality soap suitable for wholesale and retail.",
+    "seller": "vendord@example.com",
+    "district": "Kampala"
+  },
+  {
+    "name": "Maize Flour Brand 24 20L",
+    "category": "Maize Flour",
+    "price": 91832,
+    "image": "https://picsum.photos/seed/product65/300/300",
+    "description": "High quality maize flour suitable for wholesale and retail.",
+    "seller": "vendorc@example.com",
+    "district": "Mbarara"
+  },
+  {
+    "name": "Rice Brand 26 5kg",
+    "category": "Rice",
+    "price": 132131,
+    "image": "https://picsum.photos/seed/product66/300/300",
+    "description": "High quality rice suitable for wholesale and retail.",
+    "seller": "vendorb@example.com",
+    "district": "Mukono"
+  },
+  {
+    "name": "Maize Flour Brand 49 1kg",
+    "category": "Maize Flour",
+    "price": 73543,
+    "image": "https://picsum.photos/seed/product67/300/300",
+    "description": "High quality maize flour suitable for wholesale and retail.",
+    "seller": "vendore@example.com",
+    "district": "Wakiso"
+  },
+  {
+    "name": "Toilet Paper Brand 35 1kg",
+    "category": "Toilet Paper",
+    "price": 92578,
+    "image": "https://picsum.photos/seed/product68/300/300",
+    "description": "High quality toilet paper suitable for wholesale and retail.",
+    "seller": "vendora@example.com",
+    "district": "Wakiso"
+  },
+  {
+    "name": "Flour Brand 47 25kg",
+    "category": "Flour",
+    "price": 71585,
+    "image": "https://picsum.photos/seed/product69/300/300",
+    "description": "High quality flour suitable for wholesale and retail.",
+    "seller": "vendore@example.com",
+    "district": "Jinja"
+  },
+  {
+    "name": "Maize Flour Brand 50 25kg",
+    "category": "Maize Flour",
+    "price": 78208,
+    "image": "https://picsum.photos/seed/product70/300/300",
+    "description": "High quality maize flour suitable for wholesale and retail.",
+    "seller": "vendora@example.com",
+    "district": "Mukono"
+  },
+  {
+    "name": "Maize Flour Brand 15 10L",
+    "category": "Maize Flour",
+    "price": 143607,
+    "image": "https://picsum.photos/seed/product71/300/300",
+    "description": "High quality maize flour suitable for wholesale and retail.",
+    "seller": "vendore@example.com",
+    "district": "Kampala"
+  },
+  {
+    "name": "Cooking Oil Brand 25 25kg",
+    "category": "Cooking Oil",
+    "price": 134537,
+    "image": "https://picsum.photos/seed/product72/300/300",
+    "description": "High quality cooking oil suitable for wholesale and retail.",
+    "seller": "vendorb@example.com",
+    "district": "Jinja"
+  },
+  {
+    "name": "Biscuits Brand 50 1kg",
+    "category": "Biscuits",
+    "price": 80408,
+    "image": "https://picsum.photos/seed/product73/300/300",
+    "description": "High quality biscuits suitable for wholesale and retail.",
+    "seller": "vendore@example.com",
+    "district": "Wakiso"
+  },
+  {
+    "name": "Maize Flour Brand 13 5kg",
+    "category": "Maize Flour",
+    "price": 113857,
+    "image": "https://picsum.photos/seed/product74/300/300",
+    "description": "High quality maize flour suitable for wholesale and retail.",
+    "seller": "vendorb@example.com",
+    "district": "Mbarara"
+  },
+  {
+    "name": "Salt Brand 27 10L",
+    "category": "Salt",
+    "price": 45752,
+    "image": "https://picsum.photos/seed/product75/300/300",
+    "description": "High quality salt suitable for wholesale and retail.",
+    "seller": "vendord@example.com",
+    "district": "Mbarara"
+  },
+  {
+    "name": "Sugar Brand 23 10L",
+    "category": "Sugar",
+    "price": 138290,
+    "image": "https://picsum.photos/seed/product76/300/300",
+    "description": "High quality sugar suitable for wholesale and retail.",
+    "seller": "vendord@example.com",
+    "district": "Mukono"
+  },
+  {
+    "name": "Soap Brand 30 5kg",
+    "category": "Soap",
+    "price": 122723,
+    "image": "https://picsum.photos/seed/product77/300/300",
+    "description": "High quality soap suitable for wholesale and retail.",
+    "seller": "vendord@example.com",
+    "district": "Mukono"
+  },
+  {
+    "name": "Sugar Brand 32 5kg",
+    "category": "Sugar",
+    "price": 135950,
+    "image": "https://picsum.photos/seed/product78/300/300",
+    "description": "High quality sugar suitable for wholesale and retail.",
+    "seller": "vendore@example.com",
+    "district": "Mukono"
+  },
+  {
+    "name": "Biscuits Brand 46 2kg",
+    "category": "Biscuits",
+    "price": 40504,
+    "image": "https://picsum.photos/seed/product79/300/300",
+    "description": "High quality biscuits suitable for wholesale and retail.",
+    "seller": "vendorb@example.com",
+    "district": "Mukono"
+  },
+  {
+    "name": "Sugar Brand 49 5kg",
+    "category": "Sugar",
+    "price": 74856,
+    "image": "https://picsum.photos/seed/product80/300/300",
+    "description": "High quality sugar suitable for wholesale and retail.",
+    "seller": "vendorb@example.com",
+    "district": "Wakiso"
+  },
+  {
+    "name": "Salt Brand 36 10L",
+    "category": "Salt",
+    "price": 45410,
+    "image": "https://picsum.photos/seed/product81/300/300",
+    "description": "High quality salt suitable for wholesale and retail.",
+    "seller": "vendore@example.com",
+    "district": "Mbarara"
+  },
+  {
+    "name": "Biscuits Brand 11 5kg",
+    "category": "Biscuits",
+    "price": 11002,
+    "image": "https://picsum.photos/seed/product82/300/300",
+    "description": "High quality biscuits suitable for wholesale and retail.",
+    "seller": "vendord@example.com",
+    "district": "Kampala"
+  },
+  {
+    "name": "Flour Brand 24 20L",
+    "category": "Flour",
+    "price": 74943,
+    "image": "https://picsum.photos/seed/product83/300/300",
+    "description": "High quality flour suitable for wholesale and retail.",
+    "seller": "vendora@example.com",
+    "district": "Jinja"
+  },
+  {
+    "name": "Toilet Paper Brand 42 20L",
+    "category": "Toilet Paper",
+    "price": 101815,
+    "image": "https://picsum.photos/seed/product84/300/300",
+    "description": "High quality toilet paper suitable for wholesale and retail.",
+    "seller": "vendorb@example.com",
+    "district": "Mukono"
+  },
+  {
+    "name": "Soap Brand 39 20L",
+    "category": "Soap",
+    "price": 58167,
+    "image": "https://picsum.photos/seed/product85/300/300",
+    "description": "High quality soap suitable for wholesale and retail.",
+    "seller": "vendora@example.com",
+    "district": "Jinja"
+  },
+  {
+    "name": "Soap Brand 17 10L",
+    "category": "Soap",
+    "price": 143224,
+    "image": "https://picsum.photos/seed/product86/300/300",
+    "description": "High quality soap suitable for wholesale and retail.",
+    "seller": "vendord@example.com",
+    "district": "Wakiso"
+  },
+  {
+    "name": "Maize Flour Brand 22 5kg",
+    "category": "Maize Flour",
+    "price": 58478,
+    "image": "https://picsum.photos/seed/product87/300/300",
+    "description": "High quality maize flour suitable for wholesale and retail.",
+    "seller": "vendord@example.com",
+    "district": "Mukono"
+  },
+  {
+    "name": "Toilet Paper Brand 48 5kg",
+    "category": "Toilet Paper",
+    "price": 141558,
+    "image": "https://picsum.photos/seed/product88/300/300",
+    "description": "High quality toilet paper suitable for wholesale and retail.",
+    "seller": "vendord@example.com",
+    "district": "Mukono"
+  },
+  {
+    "name": "Toilet Paper Brand 40 20L",
+    "category": "Toilet Paper",
+    "price": 148943,
+    "image": "https://picsum.photos/seed/product89/300/300",
+    "description": "High quality toilet paper suitable for wholesale and retail.",
+    "seller": "vendord@example.com",
+    "district": "Jinja"
+  },
+  {
+    "name": "Toilet Paper Brand 37 10L",
+    "category": "Toilet Paper",
+    "price": 23643,
+    "image": "https://picsum.photos/seed/product90/300/300",
+    "description": "High quality toilet paper suitable for wholesale and retail.",
+    "seller": "vendorc@example.com",
+    "district": "Wakiso"
+  },
+  {
+    "name": "Biscuits Brand 20 5kg",
+    "category": "Biscuits",
+    "price": 145788,
+    "image": "https://picsum.photos/seed/product91/300/300",
+    "description": "High quality biscuits suitable for wholesale and retail.",
+    "seller": "vendora@example.com",
+    "district": "Mbarara"
+  },
+  {
+    "name": "Rice Brand 48 2kg",
+    "category": "Rice",
+    "price": 110398,
+    "image": "https://picsum.photos/seed/product92/300/300",
+    "description": "High quality rice suitable for wholesale and retail.",
+    "seller": "vendorc@example.com",
+    "district": "Jinja"
+  },
+  {
+    "name": "Maize Flour Brand 29 2kg",
+    "category": "Maize Flour",
+    "price": 31993,
+    "image": "https://picsum.photos/seed/product93/300/300",
+    "description": "High quality maize flour suitable for wholesale and retail.",
+    "seller": "vendord@example.com",
+    "district": "Mukono"
+  },
+  {
+    "name": "Flour Brand 4 2kg",
+    "category": "Flour",
+    "price": 82793,
+    "image": "https://picsum.photos/seed/product94/300/300",
+    "description": "High quality flour suitable for wholesale and retail.",
+    "seller": "vendorc@example.com",
+    "district": "Mbarara"
+  },
+  {
+    "name": "Salt Brand 29 20L",
+    "category": "Salt",
+    "price": 89168,
+    "image": "https://picsum.photos/seed/product95/300/300",
+    "description": "High quality salt suitable for wholesale and retail.",
+    "seller": "vendorc@example.com",
+    "district": "Mbarara"
+  },
+  {
+    "name": "Salt Brand 17 5kg",
+    "category": "Salt",
+    "price": 115283,
+    "image": "https://picsum.photos/seed/product96/300/300",
+    "description": "High quality salt suitable for wholesale and retail.",
+    "seller": "vendord@example.com",
+    "district": "Mukono"
+  },
+  {
+    "name": "Washing Powder Brand 23 1kg",
+    "category": "Washing Powder",
+    "price": 107883,
+    "image": "https://picsum.photos/seed/product97/300/300",
+    "description": "High quality washing powder suitable for wholesale and retail.",
+    "seller": "vendora@example.com",
+    "district": "Mbarara"
+  },
+  {
+    "name": "Washing Powder Brand 26 1kg",
+    "category": "Washing Powder",
+    "price": 122887,
+    "image": "https://picsum.photos/seed/product98/300/300",
+    "description": "High quality washing powder suitable for wholesale and retail.",
+    "seller": "vendore@example.com",
+    "district": "Kampala"
+  },
+  {
+    "name": "Biscuits Brand 14 10L",
+    "category": "Biscuits",
+    "price": 76311,
+    "image": "https://picsum.photos/seed/product99/300/300",
+    "description": "High quality biscuits suitable for wholesale and retail.",
+    "seller": "vendorb@example.com",
+    "district": "Mbarara"
+  },
+  {
+    "name": "Toilet Paper Brand 13 25kg",
+    "category": "Toilet Paper",
+    "price": 56440,
+    "image": "https://picsum.photos/seed/product100/300/300",
+    "description": "High quality toilet paper suitable for wholesale and retail.",
+    "seller": "vendord@example.com",
+    "district": "Kampala"
+  },
+  {
+    "name": "Salt Brand 5 5kg",
+    "category": "Salt",
+    "price": 94839,
+    "image": "https://picsum.photos/seed/product101/300/300",
+    "description": "High quality salt suitable for wholesale and retail.",
+    "seller": "vendora@example.com",
+    "district": "Jinja"
+  },
+  {
+    "name": "Flour Brand 18 20L",
+    "category": "Flour",
+    "price": 131852,
+    "image": "https://picsum.photos/seed/product102/300/300",
+    "description": "High quality flour suitable for wholesale and retail.",
+    "seller": "vendord@example.com",
+    "district": "Mukono"
+  },
+  {
+    "name": "Toilet Paper Brand 28 1kg",
+    "category": "Toilet Paper",
+    "price": 37832,
+    "image": "https://picsum.photos/seed/product103/300/300",
+    "description": "High quality toilet paper suitable for wholesale and retail.",
+    "seller": "vendore@example.com",
+    "district": "Kampala"
+  },
+  {
+    "name": "Biscuits Brand 43 20L",
+    "category": "Biscuits",
+    "price": 105249,
+    "image": "https://picsum.photos/seed/product104/300/300",
+    "description": "High quality biscuits suitable for wholesale and retail.",
+    "seller": "vendord@example.com",
+    "district": "Mbarara"
+  },
+  {
+    "name": "Toilet Paper Brand 21 25kg",
+    "category": "Toilet Paper",
+    "price": 72328,
+    "image": "https://picsum.photos/seed/product105/300/300",
+    "description": "High quality toilet paper suitable for wholesale and retail.",
+    "seller": "vendorc@example.com",
+    "district": "Kampala"
+  },
+  {
+    "name": "Toilet Paper Brand 35 10L",
+    "category": "Toilet Paper",
+    "price": 16544,
+    "image": "https://picsum.photos/seed/product106/300/300",
+    "description": "High quality toilet paper suitable for wholesale and retail.",
+    "seller": "vendorc@example.com",
+    "district": "Wakiso"
+  },
+  {
+    "name": "Biscuits Brand 10 20L",
+    "category": "Biscuits",
+    "price": 63132,
+    "image": "https://picsum.photos/seed/product107/300/300",
+    "description": "High quality biscuits suitable for wholesale and retail.",
+    "seller": "vendorc@example.com",
+    "district": "Jinja"
+  },
+  {
+    "name": "Salt Brand 18 2kg",
+    "category": "Salt",
+    "price": 9745,
+    "image": "https://picsum.photos/seed/product108/300/300",
+    "description": "High quality salt suitable for wholesale and retail.",
+    "seller": "vendorb@example.com",
+    "district": "Mukono"
+  },
+  {
+    "name": "Salt Brand 48 10L",
+    "category": "Salt",
+    "price": 148735,
+    "image": "https://picsum.photos/seed/product109/300/300",
+    "description": "High quality salt suitable for wholesale and retail.",
+    "seller": "vendord@example.com",
+    "district": "Mbarara"
+  },
+  {
+    "name": "Cooking Oil Brand 5 5kg",
+    "category": "Cooking Oil",
+    "price": 148693,
+    "image": "https://picsum.photos/seed/product110/300/300",
+    "description": "High quality cooking oil suitable for wholesale and retail.",
+    "seller": "vendorc@example.com",
+    "district": "Kampala"
+  },
+  {
+    "name": "Sugar Brand 42 20L",
+    "category": "Sugar",
+    "price": 134217,
+    "image": "https://picsum.photos/seed/product111/300/300",
+    "description": "High quality sugar suitable for wholesale and retail.",
+    "seller": "vendord@example.com",
+    "district": "Mukono"
+  },
+  {
+    "name": "Sugar Brand 22 10L",
+    "category": "Sugar",
+    "price": 121030,
+    "image": "https://picsum.photos/seed/product112/300/300",
+    "description": "High quality sugar suitable for wholesale and retail.",
+    "seller": "vendord@example.com",
+    "district": "Jinja"
+  },
+  {
+    "name": "Soap Brand 11 2kg",
+    "category": "Soap",
+    "price": 73696,
+    "image": "https://picsum.photos/seed/product113/300/300",
+    "description": "High quality soap suitable for wholesale and retail.",
+    "seller": "vendore@example.com",
+    "district": "Mukono"
+  },
+  {
+    "name": "Salt Brand 11 2kg",
+    "category": "Salt",
+    "price": 131795,
+    "image": "https://picsum.photos/seed/product114/300/300",
+    "description": "High quality salt suitable for wholesale and retail.",
+    "seller": "vendorb@example.com",
+    "district": "Mukono"
+  },
+  {
+    "name": "Toilet Paper Brand 9 20L",
+    "category": "Toilet Paper",
+    "price": 85765,
+    "image": "https://picsum.photos/seed/product115/300/300",
+    "description": "High quality toilet paper suitable for wholesale and retail.",
+    "seller": "vendora@example.com",
+    "district": "Mukono"
+  },
+  {
+    "name": "Soap Brand 42 1kg",
+    "category": "Soap",
+    "price": 20964,
+    "image": "https://picsum.photos/seed/product116/300/300",
+    "description": "High quality soap suitable for wholesale and retail.",
+    "seller": "vendord@example.com",
+    "district": "Jinja"
+  },
+  {
+    "name": "Rice Brand 23 25kg",
+    "category": "Rice",
+    "price": 98537,
+    "image": "https://picsum.photos/seed/product117/300/300",
+    "description": "High quality rice suitable for wholesale and retail.",
+    "seller": "vendorc@example.com",
+    "district": "Kampala"
+  },
+  {
+    "name": "Sugar Brand 11 2kg",
+    "category": "Sugar",
+    "price": 59267,
+    "image": "https://picsum.photos/seed/product118/300/300",
+    "description": "High quality sugar suitable for wholesale and retail.",
+    "seller": "vendore@example.com",
+    "district": "Mbarara"
+  },
+  {
+    "name": "Cooking Oil Brand 18 20L",
+    "category": "Cooking Oil",
+    "price": 42143,
+    "image": "https://picsum.photos/seed/product119/300/300",
+    "description": "High quality cooking oil suitable for wholesale and retail.",
+    "seller": "vendora@example.com",
+    "district": "Mukono"
+  }
+]
