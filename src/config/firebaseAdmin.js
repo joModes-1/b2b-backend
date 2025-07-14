@@ -1,8 +1,11 @@
 const admin = require('firebase-admin');
 
 try {
-  // Load service account from environment variable
-  const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_BASE64);
+  // Load service account from base64 environment variable
+  const base64 = process.env.FIREBASE_SERVICE_ACCOUNT_BASE64;
+  if (!base64) throw new Error('FIREBASE_SERVICE_ACCOUNT_BASE64 env variable not set');
+  const jsonStr = Buffer.from(base64, 'base64').toString('utf-8');
+  const serviceAccount = JSON.parse(jsonStr);
 
   admin.initializeApp({
     credential: admin.credential.cert(serviceAccount),
