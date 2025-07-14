@@ -15,7 +15,7 @@ try {
 } catch (error) {
   console.error(
     'CRITICAL ERROR: Failed to initialize Firebase Admin SDK.\n' +
-    'Make sure your FIREBASE_SERVICE_ACCOUNT environment variable is set with the correct JSON.\n' +
+    'Make sure your FIREBASE_SERVICE_ACCOUNT_BASE64 environment variable is set with the correct JSON.\n' +
     'The application cannot start without it.\n',
     error
   );
