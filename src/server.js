@@ -35,7 +35,7 @@ console.log('AFRICAS_TALKING_API_KEY:', process.env.AFRICAS_TALKING_API_KEY ? '[
 
 // Middleware
 app.use(cors({
-  origin: 'http://localhost:3000',
+  origin: 'http://ujii.netlify.app',
   credentials: true
 }));
 app.use(express.json());
