@@ -7,6 +7,7 @@
 # Firebase service account
 firebase-service-account.json
 src/config/serviceAccountKey.json
+src/config/serviceAccountKey.json
 
 # logs
 npm-debug.log*
