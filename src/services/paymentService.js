@@ -136,16 +136,29 @@ exports.createFlutterwavePayment = async (data, customer) => {
         logo: process.env.COMPANY_LOGO_URL
       },
       redirect_url: isOrder ? 
-        `${process.env.FRONTEND_URL}/orders/${data._id}/verify` : 
-        `${process.env.FRONTEND_URL}/invoices/${data._id}/verify`,
+        `${process.env.FRONTEND_URL}/process-payment?order_id=${data._id}&method=flutterwave` : 
+        `${process.env.FRONTEND_URL}/process-payment?invoice_id=${data._id}&method=flutterwave`,
       meta: isOrder ? 
         { order_id: data._id.toString() } : 
         { invoice_id: data._id.toString() }
     };
 
-    const response = await flw.Charge.create(payload);
+    // For mobile money payments, we'll create a payment link via direct API call
+    const axios = require('axios');
+    
+    const response = await axios.post(
+      'https://api.flutterwave.com/v3/payments',
+      payload,
+      {
+        headers: {
+          Authorization: `Bearer ${process.env.FLUTTERWAVE_SECRET_KEY}`,
+          'Content-Type': 'application/json'
+        }
+      }
+    );
+    
     return { 
-      paymentLink: response.data.link,
+      paymentLink: response.data.data.link,
       transactionRef: payload.tx_ref
     };
   } catch (error) {

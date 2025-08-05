@@ -143,10 +143,17 @@ exports.getOrder = async (req, res) => {
       return res.status(404).json({ message: 'Order not found' });
     }
 
+    // Debug logging
+    console.log('Current user firebaseUid:', req.user.firebaseUid);
+    console.log('Order buyer:', order.buyer);
+    console.log('Order seller:', order.seller);
+    
     // Check if user is authorized to view this order
-    if (order.buyer.firebaseUid !== req.user.firebaseUid &&
-        order.seller.firebaseUid !== req.user.firebaseUid &&
-        !req.user.isAdmin) {
+    const isBuyer = order.buyer && (order.buyer.firebaseUid === req.user.firebaseUid || order.buyer._id.toString() === req.user._id?.toString());
+    const isSeller = order.seller && (order.seller.firebaseUid === req.user.firebaseUid || order.seller._id?.toString() === req.user._id?.toString());
+    
+    if (!isBuyer && !isSeller && !req.user.isAdmin) {
+      console.log('Authorization failed - user not buyer, seller, or admin');
       return res.status(403).json({ message: 'Not authorized' });
     }
 
@@ -361,6 +368,8 @@ const initiatePayment = async (req, res) => {
         paymentData = await paymentService.createPayPalOrder(order);
         break;
       case 'flutterwave':
+      case 'mtn':
+      case 'airtel':
         paymentData = await paymentService.createFlutterwavePayment(order, order.buyer);
         break;
       default:
@@ -399,6 +408,8 @@ const verifyPayment = async (req, res) => {
         paymentVerification = await paymentService.verifyPayPalPayment(transactionId);
         break;
       case 'flutterwave':
+      case 'mtn':
+      case 'airtel':
         paymentVerification = await paymentService.verifyFlutterwavePayment(transactionId);
         break;
       default:
@@ -412,7 +423,7 @@ const verifyPayment = async (req, res) => {
         paymentStatus: 'Confirmed',
         paymentDate: new Date(),
       };
-      order.updateStatus('confirmed', 'Payment confirmed', req.user._id);
+      order.updateStatus('confirmed', 'Payment confirmed', req.user);
       await order.save();
       
       await order.populate('buyer', 'email');
@@ -450,10 +461,13 @@ const verifyPayment = async (req, res) => {
 };
 
 module.exports = {
-  getOrder,
-  updateOrderStatus,
-  confirmPayment,
-  cancelOrder,
+  createOrder: exports.createOrder,
+  getBuyerOrders: exports.getBuyerOrders,
+  getVendorOrders: exports.getVendorOrders,
+  getOrder: exports.getOrder,
+  updateOrderStatus: exports.updateOrderStatus,
+  confirmPayment: exports.confirmPayment,
+  cancelOrder: exports.cancelOrder,
   initiatePayment,
   verifyPayment,
   calculateEstimatedDelivery,

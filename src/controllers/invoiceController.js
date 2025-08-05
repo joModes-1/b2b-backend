@@ -198,6 +198,8 @@ exports.initiatePayment = async (req, res) => {
         paymentData = await paymentService.createPayPalOrder(invoice);
         break;
       case 'flutterwave':
+      case 'mtn':
+      case 'airtel':
         paymentData = await paymentService.createFlutterwavePayment(invoice, invoice.buyer);
         break;
       default:
