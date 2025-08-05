@@ -29,7 +29,7 @@ exports.updateProfile = async (req, res) => {
     // Find the user by Firebase UID and update their profile
     // Using { new: true } returns the modified document
     const updatedUser = await User.findOneAndUpdate(
-      { firebaseUid: req.user.uid },
+      { firebaseUid: req.user.firebaseUid },
       { $set: updateData },
       { new: true, runValidators: true }
     ).select('-password');
@@ -62,7 +62,7 @@ exports.uploadProfilePicture = async (req, res) => {
 
     // Update user profile with new picture URL
     const user = await User.findOneAndUpdate(
-      { firebaseUid: req.user.uid },
+      { firebaseUid: req.user.firebaseUid },
       { 
         $set: { 
           profilePicture: fileUrl,
@@ -97,7 +97,7 @@ exports.uploadProfilePicture = async (req, res) => {
 // Delete profile picture
 exports.deleteProfilePicture = async (req, res) => {
   try {
-    const user = await User.findOne({ firebaseUid: req.user.uid }).select('-password');
+    const user = await User.findOne({ firebaseUid: req.user.firebaseUid }).select('-password');
     if (!user) {
       return res.status(404).json({ message: 'User not found in our system.' });
     }

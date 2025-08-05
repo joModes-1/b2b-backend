@@ -98,6 +98,32 @@ exports.verifyCodeAndRegister = async (req, res) => {
   }
 };
 
+// Get test mode verification code
+exports.getTestCode = async (req, res) => {
+  // Check if we're in test mode
+  const isTestMode = process.env.TEST_MODE === 'true';
+  
+  if (!isTestMode) {
+    return res.status(400).json({ error: 'Test mode is not enabled' });
+  }
+  
+  const { phoneNumber } = req.body;
+  
+  if (!phoneNumber) {
+    return res.status(400).json({ error: 'Phone number is required' });
+  }
+  
+  // Get the verification code from the in-memory store
+  const entry = phoneCodeStore.get(phoneNumber);
+  
+  if (!entry) {
+    return res.status(400).json({ error: 'No verification code found for this phone number' });
+  }
+  
+  // Return the verification code
+  res.json({ code: entry.code });
+};
+
 // Create user and send phone verification code
 exports.createUserAndSendVerification = async (req, res) => {
   try {
@@ -649,6 +675,47 @@ exports.logout = async (req, res) => {
       message: 'Error logging out', 
       error: error.message 
     });
+  }
+};
+
+// Change password
+exports.changePassword = async (req, res) => {
+  try {
+    const { newPassword } = req.body;
+    
+    // Validate new password
+    if (!newPassword) {
+      return res.status(400).json({ message: 'New password is required' });
+    }
+    
+    if (newPassword.length < 6) {
+      return res.status(400).json({ message: 'Password must be at least 6 characters long' });
+    }
+    
+    // Update password in Firebase - use firebaseUid from the database user object
+    await admin.auth().updateUser(req.user.firebaseUid, {
+      password: newPassword
+    });
+    
+    res.json({ message: 'Password changed successfully' });
+  } catch (error) {
+    console.error('Error changing password:', error);
+    
+    // Handle specific Firebase errors
+    if (error.code === 'auth/invalid-password') {
+      return res.status(400).json({ message: 'Invalid password format' });
+    }
+    
+    if (error.code === 'auth/invalid-uid') {
+      return res.status(400).json({ message: 'Invalid user ID' });
+    }
+    
+    if (error.code === 'auth/user-not-found') {
+      return res.status(404).json({ message: 'User not found' });
+    }
+    
+    // Return generic error for other issues
+    res.status(500).json({ message: 'Error changing password', error: error.message });
   }
 };
 

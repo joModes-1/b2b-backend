@@ -16,7 +16,13 @@ app.get('/', (req, res) => {
 });
 
 // Middleware
-app.use(cors());
+const corsOptions = {
+  origin: ['http://localhost:3000', 'http://127.0.0.1:3000', "https://ujii.netlify.app"], // Explicitly allow frontend origin
+  methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
+  credentials: true, // Allow cookies, if you use them
+  optionsSuccessStatus: 204
+};
+app.use(cors(corsOptions));
 app.use(express.json());
 
 // Stripe webhook endpoint needs raw body

@@ -14,6 +14,7 @@ router.post('/google-signin', authController.googleSignIn);
 router.post('/send-verification-code', authController.sendVerificationCode);
 router.post('/verify-code-and-register', authController.verifyCodeAndRegister);
 router.post('/auth/verify-code-and-register', authController.verifyCodeAndRegisterApi);
+router.post('/get-test-code', authController.getTestCode);
 
 
 
@@ -27,6 +28,9 @@ router.post('/resend-verification', authController.resendVerificationEmail);
 
 // Update phone verification status (requires authentication)
 router.post('/update-phone-verification', verifyToken, authController.updatePhoneVerification);
+
+// Change password (requires authentication)
+router.post('/change-password', verifyToken, authController.changePassword);
 
 // Find userId by phoneNumber or email (supports both POST and GET for flexibility)
 router.post('/find-user-id', authController.findUserIdByPhoneOrEmail);

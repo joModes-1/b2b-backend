@@ -6,120 +6,97 @@ const { uploadToCloudinary, deleteFromCloudinary } = require('../utils/cloudinar
 
 // Get all products (public)
 exports.getAllProducts = async (req, res) => {
-  const page = Number(req.query.page) || 1;
-  const limit = Number(req.query.limit) || 20;
+  console.log('--- New Request to getAllProducts ---');
+  console.log('Request Query:', req.query);
+
   try {
-    console.log('--- Executing getAllProducts ---');
-    // Advanced search: use aggregation to score and sort by relevance
-    let sanitizedProducts = [];
-    if (req.query.search && req.query.search.trim() !== '') {
-      const search = req.query.search.trim();
-      const searchRegex = new RegExp(search, 'i');
-      const exactNameRegex = new RegExp(`^${search}$`, 'i');
-      // First, find the category of the exact match (if any)
-      let exactCategory = null;
-      const exactMatchDoc = await Product.findOne({ name: { $regex: exactNameRegex } });
-      if (exactMatchDoc) exactCategory = exactMatchDoc.category;
-      
-      // Aggregation pipeline
-      const pipeline = [
-        {
-          $addFields: {
-            relevance: {
-              $switch: {
-                branches: [
-                  { case: { $regexMatch: { input: "$name", regex: exactNameRegex } }, then: 4 },
-                  { case: { $and: [
-                    { $regexMatch: { input: "$name", regex: searchRegex } },
-                    { $not: [{ $regexMatch: { input: "$name", regex: exactNameRegex } }] }
-                  ] }, then: 3 },
-                  { case: { $and: [
-                    { $eq: ["$category", exactCategory] },
-                    { $not: [{ $regexMatch: { input: "$name", regex: searchRegex } }] }
-                  ] }, then: 2 },
-                  { case: { $or: [
-                    { $regexMatch: { input: "$name", regex: searchRegex } },
-                    { $regexMatch: { input: "$description", regex: searchRegex } }
-                  ] }, then: 1 },
-                ],
-                default: 0
-              }
-            }
-          }
-        },
-        { $match: { relevance: { $gt: 0 } } },
-        { $sort: { relevance: -1, name: 1 } }
-      ];
-      sanitizedProducts = await Product.aggregate(pipeline);
-      // Populate seller for each product (manual, since aggregate doesn't auto-populate)
-      const ids = sanitizedProducts.map(p => p._id);
-      const populated = await Product.find({ _id: { $in: ids } }).populate('seller', 'name companyName');
-      // Preserve aggregation order
-      const popMap = new Map(populated.map(p => [p._id.toString(), p]));
-      sanitizedProducts = sanitizedProducts.map(p => {
-        const full = popMap.get(p._id.toString());
-        if (full && !full.seller) {
-          full.seller = { _id: null, name: 'Unknown Seller', companyName: 'Unknown Seller' };
-        }
-        return full || p;
-      }).filter(Boolean);
-    } else {
-      // No search: default to normal
-      // Fetch products with pagination for infinite scroll
-      const page = Number(req.query.page) || 1;
-      const limit = Number(req.query.limit) || 20;
-      const skip = (page - 1) * limit;
-      // Add category filtering if category is specified and not 'All'
-      let filter = {};
-      if (req.query.category && req.query.category !== 'All') {
-        filter.category = req.query.category;
-      }
-      const products = await Product.find(filter)
-        .sort({ createdAt: -1 })
-        .skip(skip)
-        .limit(limit)
-        .populate('seller', 'name companyName');
-      // If user is authenticated, move their products to the top
-      if (req.user && req.user._id) {
-        const myProducts = [];
-        const otherProducts = [];
-        for (const p of products) {
-          if (!p.seller) {
-            p.seller = { _id: null, name: 'Unknown Seller', companyName: 'Unknown Seller' };
-          }
-          if (p.seller && p.seller._id && p.seller._id.toString() === req.user._id.toString()) {
-            myProducts.push(p);
-          } else {
-            otherProducts.push(p);
-          }
-        }
-        sanitizedProducts = [...myProducts, ...otherProducts];
-      } else {
-        sanitizedProducts = products.map(p => {
-          if (!p.seller) {
-            p.seller = { _id: null, name: 'Unknown Seller', companyName: 'Unknown Seller' };
-          }
-          return p;
-        });
+    const page = Number(req.query.page) || 1;
+    const limit = Number(req.query.limit) || 20;
+
+    const filters = {};
+
+    // 1. Handle Search Term
+    if (req.query.search) {
+      filters.$text = { $search: req.query.search.trim() };
+    }
+
+    // 2. Handle Category Filter (can be single or array)
+    if (req.query.category) {
+      const categories = Array.isArray(req.query.category) ? req.query.category : [req.query.category];
+      if (!categories.includes('All')) {
+        filters.category = { $in: categories };
       }
     }
 
-    // Respond with paginated products (already paginated from DB)
-    res.json({
-      data: sanitizedProducts,
-      total: undefined, // Optionally, you can add total count if you want, but not needed for infinite scroll
-      currentPage: page,
-      hasNextPage: sanitizedProducts.length === limit
+    // 3. Handle Price Range
+    if (req.query.priceRange) {
+      const priceRange = req.query.priceRange;
+      if (Array.isArray(priceRange) && priceRange.length === 2) {
+        filters.price = { $gte: Number(priceRange[0]), $lte: Number(priceRange[1]) };
+      }
+    }
+
+    // 4. Handle Availability
+    if (req.query.availability) {
+        const availability = Array.isArray(req.query.availability) ? req.query.availability : [req.query.availability];
+        if (availability.length > 0) {
+            const availabilityFilters = [];
+            if (availability.includes('In Stock')) {
+                availabilityFilters.push({ stock: { $gt: 0 } });
+            }
+            if (availability.includes('Out of Stock')) {
+                availabilityFilters.push({ stock: { $lte: 0 } });
+            }
+            if (availabilityFilters.length > 0) {
+                filters.$or = availabilityFilters;
+            }
+        }
+    }
+
+    console.log('--- Constructed MongoDB Filters ---', JSON.stringify(filters, null, 2));
+
+    const totalProducts = await Product.countDocuments(filters);
+    const products = await Product.find(filters)
+      .sort({ createdAt: -1 })
+      .skip((page - 1) * limit)
+      .limit(limit)
+      .populate('seller', 'name companyName');
+
+    const sanitizedProducts = products.map(p => {
+      const productJson = p.toJSON();
+      if (!productJson.seller) {
+        productJson.seller = { _id: null, name: 'Unknown Seller', companyName: 'Unknown Company' };
+      }
+      return productJson;
     });
+
+    console.log(`--- Found ${sanitizedProducts.length} of ${totalProducts} products ---`);
+
+    res.json({
+      products: sanitizedProducts,
+      page,
+      limit,
+      totalProducts
+    });
+
   } catch (error) {
     console.error('Error in getAllProducts:', error);
-    res.status(500).json({ message: 'Error fetching products', error: error.message });
+    res.status(500).json({ 
+      message: 'Error fetching products', 
+      error: error.message, 
+      ...(process.env.NODE_ENV === 'development' && { stack: error.stack })
+    });
   }
 };
 
 // Get single product (public)
 exports.getProduct = async (req, res) => {
   try {
+    // Validate that the ID is a valid MongoDB ObjectId
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      return res.status(400).json({ message: 'Invalid product ID format' });
+    }
+    
     const product = await Product.findById(req.params.id).populate('seller', 'name email');
     if (!product) {
       return res.status(404).json({ message: 'Product not found' });
@@ -148,6 +125,28 @@ exports.getSellerProducts = async (req, res) => {
   } catch (error) {
     console.error('Error in getSellerProducts:', error);
     res.status(500).json({ message: 'Error fetching seller products', error: error.message });
+  }
+};
+
+// Get similar products
+exports.getSimilarProducts = async (req, res) => {
+  try {
+    const product = await Product.findById(req.params.id);
+    if (!product) {
+      return res.status(404).json({ message: 'Product not found' });
+    }
+
+    const similarProducts = await Product.find({
+      category: product.category,
+      _id: { $ne: product._id } // Exclude the product itself
+    })
+    .limit(4) // Limit to 4 similar products
+    .populate('seller', 'name companyName');
+
+    res.json(similarProducts);
+  } catch (error) {
+    console.error('Error in getSimilarProducts:', error);
+    res.status(500).json({ message: 'Error fetching similar products', error: error.message });
   }
 };
 
@@ -397,33 +396,39 @@ let categoryCountsCache = {
 exports.getCategoryCounts = async (req, res) => {
   try {
     const now = Date.now();
+    // If a valid cache exists, return it immediately
     if (categoryCountsCache.data && categoryCountsCache.expires > now) {
-      return res.json({ success: true, data: categoryCountsCache.data, cached: true });
+      return res.json(categoryCountsCache.data);
     }
-    // First get total count for 'All' category
+
+    // Get total count for 'All' category
     const totalCount = await Product.countDocuments();
-    
-    // Get counts for each category by grouping all products
-    const counts = await Product.aggregate([
-      {
-        $group: {
-          _id: "$category",
-          count: { $sum: 1 }
-        }
-      }
+
+    // Get counts for each category
+    const categoryData = await Product.aggregate([
+      { $unwind: "$category" },
+      { $group: { _id: "$category", count: { $sum: 1 } } },
+      { $sort: { _id: 1 } }
     ]);
-    
-    // Format as { category: count } and add total count for 'All'
-    const result = { 'All': totalCount };
-    counts.forEach(c => { result[c._id] = c.count; });
+
+    // Format the final array, starting with 'All'
+    const finalCategories = [
+      { _id: 'All', count: totalCount },
+      ...categoryData
+    ];
+
+    // Update the cache
     categoryCountsCache = {
-      data: result,
-      expires: now + 60 * 1000 // 60 seconds TTL
+      data: finalCategories,
+      expires: now + (5 * 60 * 1000) // 5 minute TTL
     };
-    res.json({ success: true, data: result, cached: false });
+
+    // Send the final array as the response
+    res.json(finalCategories);
+
   } catch (error) {
     console.error('Error in getCategoryCounts:', error);
-    res.status(500).json({ success: false, message: 'Error fetching category counts', error: error.message });
+    res.status(500).json({ message: 'Error fetching category counts' });
   }
 };
 
@@ -433,10 +438,32 @@ exports.getFeaturedProducts = async (req, res) => {
     const products = await Product.find({ status: 'active' })
       .sort({ createdAt: -1 })
       .limit(8)
-      .populate('seller', 'name');
-    res.json(products);
+      .select('name price images category');
+    
+    res.json({
+      success: true,
+      products
+    });
   } catch (error) {
     console.error('Error fetching featured products:', error);
-    res.status(500).json({ message: 'Error fetching featured products', error: error.message });
+    res.status(500).json({ success: false, message: 'Server error' });
   }
-}; 
+};
+
+// Get trending products (public) - latest 15 active products
+exports.getTrendingProducts = async (req, res) => {
+  try {
+    const products = await Product.find({ status: 'active' })
+      .sort({ createdAt: -1 })
+      .limit(15)
+      .select('name price images category');
+    
+    res.json({
+      success: true,
+      products
+    });
+  } catch (error) {
+    console.error('Error fetching trending products:', error);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+};

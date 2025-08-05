@@ -7,8 +7,8 @@ const productController = require('../controllers/productController');
 // Debug route registration
 console.log('Setting up product routes...');
 
-// Get all products (public)
-router.get('/', productController.getAllProducts);
+// Get trending products (public)
+router.get('/trending', productController.getTrendingProducts);
 
 // Get featured products (public)
 router.get('/featured', productController.getFeaturedProducts);
@@ -16,8 +16,14 @@ router.get('/featured', productController.getFeaturedProducts);
 // Get product counts grouped by category (public)
 router.get('/categories/counts', productController.getCategoryCounts);
 
+// Get all products (public)
+router.get('/', productController.getAllProducts);
+
 // Get single product (public)
 router.get('/:id', productController.getProduct);
+
+// Get similar products (public)
+router.get('/:id/similar', productController.getSimilarProducts);
 
 // Seller routes
 // POST /api/products - Create a new product (seller only)
