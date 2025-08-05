@@ -7,9 +7,8 @@ exports.createOrder = async (req, res) => {
   console.log('--- Executing updated createOrder function ---');
   try {
     console.log('Request user (from Firebase token):', req.user);
-    // The user object from verifyToken is the Firebase decoded token.
-    // We need to find the corresponding user in our database to get their MongoDB _id.
-    const buyer = await User.findOne({ firebaseUid: req.user.uid });
+    // The user object from verifyToken is the full user profile from our database.
+    const buyer = req.user;
     console.log('Found buyer in database:', buyer);
 
     if (!buyer) {
@@ -108,7 +107,7 @@ exports.createOrder = async (req, res) => {
 // Get all orders for buyer
 exports.getBuyerOrders = async (req, res) => {
   try {
-    const orders = await Order.find({ buyer: req.user._id })
+    const orders = await Order.find({ 'buyer.firebaseUid': req.user.firebaseUid })
       .populate('seller', 'name email')
       .populate('items.listing')
       .sort({ createdAt: -1 });
@@ -121,7 +120,7 @@ exports.getBuyerOrders = async (req, res) => {
 // Get all orders for vendor
 exports.getVendorOrders = async (req, res) => {
   try {
-    const orders = await Order.find({ seller: req.user._id })
+    const orders = await Order.find({ 'seller.firebaseUid': req.user.firebaseUid })
       .populate('buyer', 'name email')
       .populate('items.listing')
       .sort({ createdAt: -1 });
@@ -143,19 +142,13 @@ exports.getOrder = async (req, res) => {
     if (!order) {
       return res.status(404).json({ message: 'Order not found' });
     }
-/*
-    console.log('Authorization check:', {
-      orderId: order._id,
-      orderBuyer: order.buyer?._id?.toString(),
-      orderSeller: order.seller?._id?.toString(),
-      reqUserId: req.user._id?.toString(),
-      isAdmin: req.user.isAdmin
-    });
-    if (order.buyer._id.toString() !== req.user._id.toString() &&
-        order.seller._id.toString() !== req.user._id.toString() &&
+
+    // Check if user is authorized to view this order
+    if (order.buyer.firebaseUid !== req.user.firebaseUid &&
+        order.seller.firebaseUid !== req.user.firebaseUid &&
         !req.user.isAdmin) {
       return res.status(403).json({ message: 'Not authorized' });
-    }*/
+    }
 
     res.json(order);
   } catch (error) {
@@ -175,14 +168,13 @@ exports.updateOrderStatus = async (req, res) => {
       return res.status(404).json({ message: 'Order not found' });
     }
 
-    /*
-    if (order.seller.toString() !== req.user._id.toString() && !req.user.isAdmin) {
+    // Check if user is authorized to update this order (seller or admin only)
+    if (order.seller.firebaseUid !== req.user.firebaseUid && !req.user.isAdmin) {
       return res.status(403).json({ message: 'Not authorized' });
     }
-    */
 
     // Update status
-    order.updateStatus(status, note, req.user._id);
+    order.updateStatus(status, note, req.user);
 
     // Add tracking number if provided
     if (req.body.trackingNumber) {
@@ -219,9 +211,8 @@ exports.confirmPayment = async (req, res) => {
       return res.status(404).json({ message: 'Order not found' });
     }
 
-    // Find the user from the token and verify they are the buyer
-    const user = await User.findOne({ firebaseUid: req.user.uid });
-    if (!user || order.buyer.toString() !== user._id.toString()) {
+    // Verify the user is the buyer of the order
+    if (order.buyer.firebaseUid !== req.user.firebaseUid) {
       return res.status(403).json({ message: 'You are not authorized to confirm this order.' });
     }
 
@@ -231,7 +222,7 @@ exports.confirmPayment = async (req, res) => {
       paymentStatus: 'Confirmed',
       paymentDate: new Date(),
     };
-    order.updateStatus('confirmed', 'Payment confirmed via Flutterwave', user._id);
+    order.updateStatus('confirmed', 'Payment confirmed via Flutterwave', req.user);
     
     await order.save();
     
@@ -286,13 +277,13 @@ exports.cancelOrder = async (req, res) => {
     }
 
     // Verify user is either buyer or vendor
-    if (order.buyer.toString() !== req.user._id.toString() &&
-        order.seller.toString() !== req.user._id.toString() &&
+    if (order.buyer.firebaseUid !== req.user.firebaseUid &&
+        order.seller.firebaseUid !== req.user.firebaseUid &&
         !req.user.isAdmin) {
       return res.status(403).json({ message: 'Not authorized' });
     }
 
-    order.updateStatus('cancelled', req.body.note || 'Order cancelled', req.user._id);
+    order.updateStatus('cancelled', req.body.note || 'Order cancelled', req.user);
     await order.save();
 
     // Send email notifications
@@ -332,18 +323,139 @@ const calculateEstimatedDelivery = (shippingMethod) => {
 
 // Helper function to get status message
 const getStatusMessage = (status) => {
-  switch (status) {
-    case 'confirmed':
-      return 'Your order has been confirmed and is being prepared.';
-    case 'processing':
-      return 'Your order is being processed.';
-    case 'shipped':
-      return 'Your order has been shipped.';
-    case 'delivered':
-      return 'Your order has been delivered.';
-    case 'cancelled':
-      return 'Your order has been cancelled.';
-    default:
-      return '';
+  const messages = {
+    pending: 'Order is pending confirmation',
+    confirmed: 'Payment confirmed, order being processed',
+    shipped: 'Order has been shipped',
+    delivered: 'Order has been delivered',
+    cancelled: 'Order has been cancelled',
+    completed: 'Order completed successfully',
+    returned: 'Order has been returned',
+  };
+  return messages[status] || 'Order status updated';
+};
+
+// Initiate payment
+const initiatePayment = async (req, res) => {
+  try {
+    const { paymentMethod } = req.body;
+    const order = await Order.findById(req.params.id).populate('buyer');
+    
+    if (!order) {
+      return res.status(404).json({ message: 'Order not found' });
+    }
+
+    // Check if user is authorized to initiate payment for this order
+    if (order.buyer.firebaseUid !== req.user.firebaseUid) {
+      return res.status(403).json({ message: 'You are not authorized to initiate payment for this order.' });
+    }
+
+    const paymentService = require('../services/paymentService');
+    
+    let paymentData;
+    switch (paymentMethod) {
+      case 'stripe':
+        paymentData = await paymentService.createStripeSession(order);
+        break;
+      case 'paypal':
+        paymentData = await paymentService.createPayPalOrder(order);
+        break;
+      case 'flutterwave':
+        paymentData = await paymentService.createFlutterwavePayment(order, order.buyer);
+        break;
+      default:
+        return res.status(400).json({ message: 'Invalid payment method' });
+    }
+
+    res.json(paymentData);
+  } catch (error) {
+    res.status(400).json({ message: error.message });
   }
-}; 
+};
+
+// Verify payment
+const verifyPayment = async (req, res) => {
+  try {
+    const { paymentMethod, transactionId } = req.body;
+    const order = await Order.findById(req.params.id);
+    
+    if (!order) {
+      return res.status(404).json({ message: 'Order not found' });
+    }
+
+    // Check if user is authorized to verify payment for this order
+    if (order.buyer.firebaseUid !== req.user.firebaseUid) {
+      return res.status(403).json({ message: 'You are not authorized to verify payment for this order.' });
+    }
+
+    const paymentService = require('../services/paymentService');
+    
+    let paymentVerification;
+    switch (paymentMethod) {
+      case 'stripe':
+        paymentVerification = await paymentService.verifyStripePayment(transactionId);
+        break;
+      case 'paypal':
+        paymentVerification = await paymentService.verifyPayPalPayment(transactionId);
+        break;
+      case 'flutterwave':
+        paymentVerification = await paymentService.verifyFlutterwavePayment(transactionId);
+        break;
+      default:
+        return res.status(400).json({ message: 'Invalid payment method' });
+    }
+
+    if (paymentVerification.success) {
+      order.paymentMethod = paymentMethod;
+      order.paymentDetails = {
+        paymentId: transactionId,
+        paymentStatus: 'Confirmed',
+        paymentDate: new Date(),
+      };
+      order.updateStatus('confirmed', 'Payment confirmed', req.user._id);
+      await order.save();
+      
+      await order.populate('buyer', 'email');
+      await order.populate('seller', 'email');
+
+      // Send email notifications
+      try {
+        if (order.seller && order.seller.email) {
+          await sendEmail(
+            order.seller.email,
+            `Payment Confirmed for Order #${order.orderNumber}`,
+            `Payment has been confirmed for order ${order.orderNumber}.`
+          );
+        }
+
+        if (order.buyer && order.buyer.email) {
+          await sendEmail(
+            order.buyer.email,
+            `Payment Confirmed for Order #${order.orderNumber}`,
+            `Your payment has been confirmed for order ${order.orderNumber}.`
+          );
+        }
+      } catch (emailError) {
+        console.error('Email notification error:', emailError);
+        // Don't throw error as payment verification should not fail due to email issues
+      }
+
+      res.json({ success: true, message: 'Payment verified successfully', order });
+    } else {
+      res.status(400).json({ success: false, message: 'Payment verification failed' });
+    }
+  } catch (error) {
+    res.status(400).json({ message: error.message });
+  }
+};
+
+module.exports = {
+  getOrder,
+  updateOrderStatus,
+  confirmPayment,
+  cancelOrder,
+  initiatePayment,
+  verifyPayment,
+  calculateEstimatedDelivery,
+  getStatusMessage
+};

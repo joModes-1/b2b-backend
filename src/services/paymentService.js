@@ -24,26 +24,35 @@ const flw = new Flutterwave(
 );
 
 // Create Stripe payment session
-exports.createStripeSession = async (invoice) => {
+exports.createStripeSession = async (data) => {
   try {
+    // Handle both invoice and order data structures
+    const isOrder = !data.invoiceNumber && data.orderNumber;
+    
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ['card'],
-      line_items: invoice.items.map(item => ({
+      line_items: data.items.map(item => ({
         price_data: {
           currency: 'usd',
           product_data: {
-            name: item.description || 'Product',
+            name: isOrder ? 
+              (item.listing?.name || item.listing?.title || 'Product') : 
+              (item.description || 'Product'),
           },
           unit_amount: Math.round(item.unitPrice * 100), // Convert to cents
         },
         quantity: item.quantity,
       })),
       mode: 'payment',
-      success_url: `${process.env.FRONTEND_URL}/invoices/${invoice._id}/success?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${process.env.FRONTEND_URL}/invoices/${invoice._id}/cancel`,
-      metadata: {
-        invoiceId: invoice._id.toString()
-      }
+      success_url: isOrder ? 
+        `${process.env.FRONTEND_URL}/orders/${data._id}/success?session_id={CHECKOUT_SESSION_ID}` : 
+        `${process.env.FRONTEND_URL}/invoices/${data._id}/success?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: isOrder ? 
+        `${process.env.FRONTEND_URL}/orders/${data._id}/cancel` : 
+        `${process.env.FRONTEND_URL}/invoices/${data._id}/cancel`,
+      metadata: isOrder ? 
+        { orderId: data._id.toString() } : 
+        { invoiceId: data._id.toString() }
     });
 
     return { sessionId: session.id };
@@ -53,8 +62,11 @@ exports.createStripeSession = async (invoice) => {
 };
 
 // Create PayPal order
-exports.createPayPalOrder = async (invoice) => {
+exports.createPayPalOrder = async (data) => {
   try {
+    // Handle both invoice and order data structures
+    const isOrder = !data.invoiceNumber && data.orderNumber;
+    
     const request = new paypal.orders.OrdersCreateRequest();
     request.prefer("return=representation");
     request.requestBody({
@@ -62,28 +74,31 @@ exports.createPayPalOrder = async (invoice) => {
       purchase_units: [{
         amount: {
           currency_code: 'USD',
-          value: invoice.totalAmount.toString(),
+          value: data.totalAmount.toString(),
           breakdown: {
             item_total: {
               currency_code: 'USD',
-              value: invoice.subtotal.toString()
+              value: data.subtotal.toString()
             },
             tax_total: {
               currency_code: 'USD',
-              value: invoice.tax.toString()
+              value: data.tax.toString()
             }
           }
         },
-        items: invoice.items.map(item => ({
-          name: item.description || 'Product',
-          unit_amount: {
-            currency_code: 'USD',
-            value: item.unitPrice.toString()
-          },
-          quantity: item.quantity.toString()
-        })),
-        custom_id: invoice._id.toString()
-      }]
+        custom_id: data._id.toString(),
+        description: isOrder ? 
+          `Order payment for ${data.orderNumber}` : 
+          `Invoice payment for ${data.invoiceNumber}`
+      }],
+      application_context: {
+        return_url: isOrder ? 
+          `${process.env.FRONTEND_URL}/orders/${data._id}/success` : 
+          `${process.env.FRONTEND_URL}/invoices/${data._id}/success`,
+        cancel_url: isOrder ? 
+          `${process.env.FRONTEND_URL}/orders/${data._id}/cancel` : 
+          `${process.env.FRONTEND_URL}/invoices/${data._id}/cancel`
+      }
     });
 
     const order = await paypalInstance.execute(request);
@@ -94,11 +109,16 @@ exports.createPayPalOrder = async (invoice) => {
 };
 
 // Create Flutterwave payment link
-exports.createFlutterwavePayment = async (invoice, customer) => {
+exports.createFlutterwavePayment = async (data, customer) => {
   try {
+    // Handle both invoice and order data structures
+    const isOrder = !data.invoiceNumber && data.orderNumber;
+    
     const payload = {
-      tx_ref: `INV-${invoice._id}-${Date.now()}`,
-      amount: invoice.totalAmount,
+      tx_ref: isOrder ? 
+        `ORD-${data._id}-${Date.now()}` : 
+        `INV-${data._id}-${Date.now()}`,
+      amount: data.totalAmount,
       currency: 'USD',
       payment_type: 'card,mobilemoney,ussd',
       customer: {
@@ -107,14 +127,20 @@ exports.createFlutterwavePayment = async (invoice, customer) => {
         phone_number: customer.phone
       },
       customizations: {
-        title: `Invoice Payment - ${invoice.invoiceNumber}`,
-        description: 'Payment for products/services',
+        title: isOrder ? 
+          `Order Payment - ${data.orderNumber}` : 
+          `Invoice Payment - ${data.invoiceNumber}`,
+        description: isOrder ? 
+          'Payment for order' : 
+          'Payment for products/services',
         logo: process.env.COMPANY_LOGO_URL
       },
-      redirect_url: `${process.env.FRONTEND_URL}/invoices/${invoice._id}/verify`,
-      meta: {
-        invoice_id: invoice._id.toString()
-      }
+      redirect_url: isOrder ? 
+        `${process.env.FRONTEND_URL}/orders/${data._id}/verify` : 
+        `${process.env.FRONTEND_URL}/invoices/${data._id}/verify`,
+      meta: isOrder ? 
+        { order_id: data._id.toString() } : 
+        { invoice_id: data._id.toString() }
     };
 
     const response = await flw.Charge.create(payload);

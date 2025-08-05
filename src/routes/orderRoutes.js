@@ -8,7 +8,9 @@ const {
   getOrder,
   updateOrderStatus,
   cancelOrder,
-  confirmPayment
+  confirmPayment,
+  initiatePayment,
+  verifyPayment
 } = require('../controllers/orderController');
 
 // Create new order
@@ -29,7 +31,13 @@ router.patch('/:id/status', verifyToken, updateOrderStatus);
 // Cancel order
 router.post('/:id/cancel', verifyToken, cancelOrder);
 
-// Verify a payment was successful
+// Initiate payment
+router.post('/:id/initiate-payment', verifyToken, initiatePayment);
+
+// Verify payment
+router.post('/:id/verify-payment', verifyToken, verifyPayment);
+
+// Confirm a payment was successful (legacy route)
 router.post('/verify-payment/:id', verifyToken, confirmPayment);
 
 module.exports = router; 

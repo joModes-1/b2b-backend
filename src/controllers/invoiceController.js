@@ -23,7 +23,7 @@ exports.createInvoice = async (req, res) => {
     const invoice = new Invoice({
       order,
       buyer,
-      vendor: req.user._id,
+      vendor: req.user,
       items: items.map(item => ({
         ...item,
         subtotal: item.quantity * item.unitPrice
@@ -55,7 +55,7 @@ exports.createInvoice = async (req, res) => {
 // Get all invoices for vendor
 exports.getVendorInvoices = async (req, res) => {
   try {
-    const invoices = await Invoice.find({ vendor: req.user._id })
+    const invoices = await Invoice.find({ 'vendor.firebaseUid': req.user.firebaseUid })
       .populate('buyer', 'name email')
       .populate('order')
       .sort({ createdAt: -1 });
@@ -68,7 +68,7 @@ exports.getVendorInvoices = async (req, res) => {
 // Get all invoices for buyer
 exports.getBuyerInvoices = async (req, res) => {
   try {
-    const invoices = await Invoice.find({ buyer: req.user._id })
+    const invoices = await Invoice.find({ 'buyer.firebaseUid': req.user.firebaseUid })
       .populate('seller', 'name email')
       .populate('order')
       .sort({ createdAt: -1 });
@@ -92,8 +92,8 @@ exports.getInvoice = async (req, res) => {
     }
 
     // Verify user is either buyer or vendor
-    if (invoice.buyer._id.toString() !== req.user._id.toString() &&
-        invoice.vendor._id.toString() !== req.user._id.toString() &&
+    if (invoice.buyer.firebaseUid !== req.user.firebaseUid &&
+        invoice.vendor.firebaseUid !== req.user.firebaseUid &&
         !req.user.isAdmin) {
       return res.status(403).json({ message: 'Not authorized' });
     }
@@ -113,7 +113,7 @@ exports.updateInvoice = async (req, res) => {
     }
 
     // Verify vendor ownership
-    if (invoice.vendor.toString() !== req.user._id.toString() && !req.user.isAdmin) {
+    if (invoice.vendor.firebaseUid !== req.user.firebaseUid && !req.user.isAdmin) {
       return res.status(403).json({ message: 'Not authorized' });
     }
 
@@ -153,7 +153,7 @@ exports.sendInvoice = async (req, res) => {
     }
 
     // Verify vendor ownership
-    if (invoice.vendor._id.toString() !== req.user._id.toString() && !req.user.isAdmin) {
+    if (invoice.vendor.firebaseUid !== req.user.firebaseUid && !req.user.isAdmin) {
       return res.status(403).json({ message: 'Not authorized' });
     }
 
@@ -185,7 +185,7 @@ exports.initiatePayment = async (req, res) => {
     }
 
     // Verify buyer is making the payment
-    if (invoice.buyer._id.toString() !== req.user._id.toString()) {
+    if (invoice.buyer.firebaseUid !== req.user.firebaseUid) {
       return res.status(403).json({ message: 'Not authorized' });
     }
 
