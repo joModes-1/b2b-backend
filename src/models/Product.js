@@ -19,6 +19,14 @@ const productSchema = new mongoose.Schema({
     type: String,
     required: [true, 'Product category is required']
   },
+  productType: {
+    type: String,
+    required: false
+  },
+  condition: {
+    type: String,
+    required: false
+  },
   district: {
     type: String,
     required: false // Set to false for demo data

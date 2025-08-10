@@ -15,16 +15,30 @@ exports.getAllProducts = async (req, res) => {
 
     const filters = {};
 
-    // 1. Handle Search Term
+    // 1. Handle Search Term (use regex for partial, case-insensitive matching)
     if (req.query.search) {
-      filters.$text = { $search: req.query.search.trim() };
+      const raw = req.query.search.trim();
+      const escaped = raw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const regex = new RegExp(escaped, 'i');
+      filters.$or = [
+        { name: { $regex: regex } },
+        { description: { $regex: regex } },
+        { category: { $regex: regex } },
+        { productType: { $regex: regex } },
+        { condition: { $regex: regex } },
+        { features: { $elemMatch: { $regex: regex } } }
+      ];
     }
 
     // 2. Handle Category Filter (can be single or array)
     if (req.query.category) {
       const categories = Array.isArray(req.query.category) ? req.query.category : [req.query.category];
       if (!categories.includes('All')) {
-        filters.category = { $in: categories };
+        // Case-insensitive category matching
+        filters.$and = [
+          ...(filters.$and || []),
+          { category: { $in: categories.map(c => new RegExp(`^${c}$`, 'i')) } }
+        ];
       }
     }
 
@@ -186,7 +200,7 @@ exports.createProduct = async (req, res) => {
     }
 
     // 3. Validate all required fields before creating product
-    const { name, description, price, category, stock } = req.body;
+    const { name, description, price, category, productType, condition, stock } = req.body;
     const errors = [];
     if (!name || typeof name !== 'string' || name.trim() === '') errors.push('Product name is required.');
     if (!description || typeof description !== 'string' || description.trim() === '') errors.push('Product description is required.');
@@ -196,6 +210,9 @@ exports.createProduct = async (req, res) => {
     if (!imageUrls.length) errors.push('At least one product image is required.');
     // Stock is optional but if provided, must be non-negative
     if (stock !== undefined && (isNaN(Number(stock)) || Number(stock) < 0)) errors.push('Stock must be a non-negative number.');
+    // Product type and condition are optional but if provided, must be strings
+    if (productType !== undefined && typeof productType !== 'string') errors.push('Product type must be a string.');
+    if (condition !== undefined && typeof condition !== 'string') errors.push('Condition must be a string.');
     // Features/specifications are optional, but if present, must be correct types
     if (features && !Array.isArray(features)) errors.push('Features must be an array of strings.');
     if (specifications && typeof specifications !== 'object') errors.push('Specifications must be an object.');
@@ -213,6 +230,8 @@ exports.createProduct = async (req, res) => {
       description: description.trim(),
       price: Number(price),
       category: category.trim(),
+      productType: productType || '',
+      condition: condition || '',
       stock: stock !== undefined ? Number(stock) : 0,
       specifications,
       features,
@@ -290,12 +309,14 @@ exports.updateProduct = async (req, res) => {
     }
 
     // 4. Construct the final update data
-    const { name, description, price, category, stock } = req.body;
+    const { name, description, price, category, productType, condition, stock } = req.body;
     const updateData = {
       name,
       description,
       price,
       category,
+      productType,
+      condition,
       stock,
       specifications,
       features,
