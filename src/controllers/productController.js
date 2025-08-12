@@ -15,19 +15,17 @@ exports.getAllProducts = async (req, res) => {
 
     const filters = {};
 
-    // 1. Handle Search Term (use regex for partial, case-insensitive matching)
+    // 1. Handle Search Term
+    // Prefer MongoDB text search for better performance (uses index on name/description)
+    // Fallback to regex for partial matching across other fields.
+    let useTextSearch = false;
     if (req.query.search) {
       const raw = req.query.search.trim();
-      const escaped = raw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      const regex = new RegExp(escaped, 'i');
-      filters.$or = [
-        { name: { $regex: regex } },
-        { description: { $regex: regex } },
-        { category: { $regex: regex } },
-        { productType: { $regex: regex } },
-        { condition: { $regex: regex } },
-        { features: { $elemMatch: { $regex: regex } } }
-      ];
+      if (raw.length > 0) {
+        // Attempt text search first (index exists on name/description)
+        filters.$text = { $search: raw };
+        useTextSearch = true;
+      }
     }
 
     // 2. Handle Category Filter (can be single or array)
@@ -70,8 +68,18 @@ exports.getAllProducts = async (req, res) => {
     console.log('--- Constructed MongoDB Filters ---', JSON.stringify(filters, null, 2));
 
     const totalProducts = await Product.countDocuments(filters);
-    const products = await Product.find(filters)
-      .sort({ createdAt: -1 })
+    const query = Product.find(filters);
+
+    // If using text search, project score and sort by it first
+    if (useTextSearch) {
+      query.select({ score: { $meta: 'textScore' } });
+      query.sort({ score: { $meta: 'textScore' }, createdAt: -1 });
+    } else {
+      // Legacy sort if not using text search
+      query.sort({ createdAt: -1 });
+    }
+
+    const products = await query
       .skip((page - 1) * limit)
       .limit(limit)
       .populate('seller', 'name companyName');
