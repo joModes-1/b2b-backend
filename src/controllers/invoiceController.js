@@ -197,10 +197,10 @@ exports.initiatePayment = async (req, res) => {
       case 'paypal':
         paymentData = await paymentService.createPayPalOrder(invoice);
         break;
-      case 'flutterwave':
+      case 'pesapal':
       case 'mtn':
       case 'airtel':
-        paymentData = await paymentService.createFlutterwavePayment(invoice, invoice.buyer);
+        paymentData = await paymentService.createPesapalPayment(invoice, invoice.buyer);
         break;
       default:
         return res.status(400).json({ message: 'Invalid payment method' });
@@ -230,8 +230,10 @@ exports.verifyPayment = async (req, res) => {
       case 'paypal':
         paymentVerification = await paymentService.verifyPayPalPayment(transactionId);
         break;
-      case 'flutterwave':
-        paymentVerification = await paymentService.verifyFlutterwavePayment(transactionId);
+      case 'pesapal':
+      case 'mtn':
+      case 'airtel':
+        paymentVerification = await paymentService.verifyPesapalPayment(transactionId);
         break;
       default:
         return res.status(400).json({ message: 'Invalid payment method' });

@@ -72,7 +72,7 @@ const invoiceSchema = new mongoose.Schema({
   notes: String,
   paymentMethod: {
     type: String,
-    enum: ['stripe', 'paypal', 'flutterwave', 'bank_transfer', 'other'],
+    enum: ['stripe', 'paypal', 'flutterwave', 'pesapal', 'bank_transfer', 'other'],
   },
   paymentDetails: {
     transactionId: String,

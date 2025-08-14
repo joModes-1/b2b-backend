@@ -2,6 +2,7 @@ const User = require('../models/User');
 const fs = require('fs').promises;
 const path = require('path');
 const admin = require('../config/firebaseAdmin');
+const { uploadToCloudinary, deleteFromCloudinary } = require('../utils/cloudinary');
 
 // Get the currently authenticated user's profile
 exports.getMe = (req, res) => {
@@ -50,6 +51,29 @@ exports.updateProfile = async (req, res) => {
   }
 };
 
+// Helper to extract Cloudinary public_id from a secure URL
+function extractCloudinaryPublicId(url) {
+  try {
+    // Example: https://res.cloudinary.com/<cloud>/image/upload/v1699999999/b2b-platform/uploads/abc123.jpg
+    // We want: b2b-platform/uploads/abc123
+    const uploadIndex = url.indexOf('/upload/');
+    if (uploadIndex === -1) return null;
+    // Slice after '/upload/' and version segment
+    const afterUpload = url.substring(uploadIndex + 8); // after '/upload/'
+    // Remove leading version segment like v1234567890/
+    const parts = afterUpload.split('/');
+    if (parts.length < 2) return null;
+    const maybeVersion = parts[0];
+    const pathParts = maybeVersion.startsWith('v') ? parts.slice(1) : parts; // drop version if present
+    const last = pathParts[pathParts.length - 1];
+    const withoutExt = last.includes('.') ? last.substring(0, last.lastIndexOf('.')) : last;
+    const folder = pathParts.slice(0, -1).join('/');
+    return folder ? `${folder}/${withoutExt}` : withoutExt;
+  } catch {
+    return null;
+  }
+}
+
 // Upload profile picture
 exports.uploadProfilePicture = async (req, res) => {
   try {
@@ -57,8 +81,9 @@ exports.uploadProfilePicture = async (req, res) => {
       return res.status(400).json({ message: 'No file uploaded' });
     }
 
-    // Create URL for the uploaded file
-    const fileUrl = `/uploads/${req.file.filename}`;
+    // Upload to Cloudinary
+    const result = await uploadToCloudinary(req.file.path, { folder: 'b2b-platform/profile-pictures' });
+    const fileUrl = result.secure_url;
 
     // Update user profile with new picture URL
     const user = await User.findOneAndUpdate(
@@ -73,22 +98,25 @@ exports.uploadProfilePicture = async (req, res) => {
     ).select('-password');
 
     if (!user) {
-      // If user doesn't exist in our DB, delete the orphaned file.
-      if (req.file) {
-        await fs.unlink(req.file.path).catch(err => console.error('Error deleting orphaned file:', err));
+      // If user doesn't exist in our DB, delete the temp file and Cloudinary resource.
+      if (req.file) await fs.unlink(req.file.path).catch(() => {});
+      const publicId = extractCloudinaryPublicId(fileUrl);
+      if (publicId) {
+        await deleteFromCloudinary(publicId).catch(() => {});
       }
       return res.status(404).json({ message: 'User not found in our system.' });
     }
+
+    // Remove local temp file after successful upload
+    if (req.file) await fs.unlink(req.file.path).catch(() => {});
 
     res.json({
       message: 'Profile picture uploaded successfully',
       user
     });
   } catch (error) {
-    // Delete uploaded file if there's an error
-    if (req.file) {
-      await fs.unlink(req.file.path).catch(console.error);
-    }
+    // Ensure local temp file is removed on error
+    if (req.file) await fs.unlink(req.file.path).catch(() => {});
     console.error('Error in uploadProfilePicture:', error);
     res.status(500).json({ message: 'Error uploading profile picture', error: error.message });
   }
@@ -106,24 +134,25 @@ exports.deleteProfilePicture = async (req, res) => {
       return res.status(400).json({ message: 'No profile picture to delete' });
     }
 
-    // The profilePicture URL is stored as '/uploads/filename.ext'.
-    // We need to build the absolute path to the file for deletion.
-    // This assumes the 'uploads' folder is inside a 'public' directory
-    // at the root of the backend project structure (backend/public/uploads).
-    const relativePath = user.profilePicture.startsWith('/')
-      ? user.profilePicture.substring(1)
-      : user.profilePicture;
-    const filePath = path.join(__dirname, '..', '..', 'public', relativePath);
-
-    try {
-      await fs.unlink(filePath);
-    } catch (unlinkError) {
-      // If the file doesn't exist (e.g., already deleted), we can ignore
-      // the error and proceed to remove the reference from the user document.
-      if (unlinkError.code !== 'ENOENT') {
-        throw unlinkError; // Re-throw other filesystem errors.
+    // If Cloudinary URL, delete from Cloudinary. Otherwise attempt local deletion for legacy paths.
+    if (typeof user.profilePicture === 'string' && user.profilePicture.includes('res.cloudinary.com')) {
+      const publicId = extractCloudinaryPublicId(user.profilePicture);
+      if (publicId) {
+        await deleteFromCloudinary(publicId).catch(err => console.warn('Cloudinary delete warning:', err?.message));
       }
-      console.warn(`File not found during deletion, but proceeding to update DB: ${filePath}`);
+    } else {
+      const relativePath = user.profilePicture.startsWith('/')
+        ? user.profilePicture.substring(1)
+        : user.profilePicture;
+      const filePath = path.join(__dirname, '..', '..', 'public', relativePath);
+      try {
+        await fs.unlink(filePath);
+      } catch (unlinkError) {
+        if (unlinkError.code !== 'ENOENT') {
+          throw unlinkError;
+        }
+        console.warn(`File not found during deletion, but proceeding to update DB: ${filePath}`);
+      }
     }
 
     // Update user document

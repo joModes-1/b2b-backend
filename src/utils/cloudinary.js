@@ -6,12 +6,10 @@ cloudinary.config({
   api_secret: process.env.CLOUDINARY_API_SECRET
 });
 
-exports.uploadToCloudinary = async (filePath) => {
+exports.uploadToCloudinary = async (filePath, options = {}) => {
   try {
-    const result = await cloudinary.uploader.upload(filePath, {
-      folder: 'b2b-platform/products',
-      resource_type: 'auto'
-    });
+    const defaultOptions = { folder: 'b2b-platform/uploads', resource_type: 'auto' };
+    const result = await cloudinary.uploader.upload(filePath, { ...defaultOptions, ...options });
     return result;
   } catch (error) {
     console.error('Error uploading to Cloudinary:', error);

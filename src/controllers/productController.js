@@ -82,7 +82,7 @@ exports.getAllProducts = async (req, res) => {
     const products = await query
       .skip((page - 1) * limit)
       .limit(limit)
-      .populate('seller', 'name companyName');
+      .populate('seller', 'name companyName district');
 
     const sanitizedProducts = products.map(p => {
       const productJson = p.toJSON();
@@ -467,7 +467,8 @@ exports.getFeaturedProducts = async (req, res) => {
     const products = await Product.find({ status: 'active' })
       .sort({ createdAt: -1 })
       .limit(8)
-      .select('name price images category');
+      .select('name price images category district seller')
+      .populate('seller', 'name companyName district');
     
     res.json({
       success: true,
@@ -485,7 +486,8 @@ exports.getTrendingProducts = async (req, res) => {
     const products = await Product.find({ status: 'active' })
       .sort({ createdAt: -1 })
       .limit(15)
-      .select('name price images category');
+      .select('name price images category district seller')
+      .populate('seller', 'name companyName district');
     
     res.json({
       success: true,

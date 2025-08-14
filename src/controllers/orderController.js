@@ -213,7 +213,12 @@ exports.confirmPayment = async (req, res) => {
         return res.status(400).json({ message: 'Transaction ID is required.' });
     }
 
-    const order = await Order.findById(req.params.id);
+    let order = await Order.findById(req.params.id);
+    if (!order) {
+      return res.status(404).json({ message: 'Order not found' });
+    }
+    // Ensure buyer is populated for auth and downstream usage
+    await order.populate('buyer', 'name email phone firebaseUid');
 
     if (!order) {
       return res.status(404).json({ message: 'Order not found' });
@@ -346,7 +351,18 @@ const getStatusMessage = (status) => {
 // Initiate payment
 const initiatePayment = async (req, res) => {
   try {
-    const { paymentMethod } = req.body;
+    console.log('initiate-payment request body:', req.body);
+    let { paymentMethod } = req.body || {};
+    // Be tolerant: default to pesapal if not provided
+    if (!paymentMethod || typeof paymentMethod !== 'string' || !paymentMethod.trim()) {
+      paymentMethod = 'pesapal';
+    }
+    // Map legacy values
+    if (paymentMethod.toLowerCase() === 'flutterwave') {
+      paymentMethod = 'pesapal';
+    }
+    console.log('initiate-payment derived method:', paymentMethod);
+
     const order = await Order.findById(req.params.id).populate('buyer');
     
     if (!order) {
@@ -354,7 +370,9 @@ const initiatePayment = async (req, res) => {
     }
 
     // Check if user is authorized to initiate payment for this order
-    if (order.buyer.firebaseUid !== req.user.firebaseUid) {
+    const buyerId = order.buyer && (order.buyer._id ? order.buyer._id.toString() : order.buyer.toString());
+    const requesterId = req.user && req.user._id && req.user._id.toString();
+    if (!buyerId || !requesterId || buyerId !== requesterId) {
       return res.status(403).json({ message: 'You are not authorized to initiate payment for this order.' });
     }
 
@@ -368,13 +386,31 @@ const initiatePayment = async (req, res) => {
       case 'paypal':
         paymentData = await paymentService.createPayPalOrder(order);
         break;
-      case 'flutterwave':
+      case 'pesapal':
       case 'mtn':
-      case 'airtel':
-        paymentData = await paymentService.createFlutterwavePayment(order, order.buyer);
+      case 'airtel': {
+        // Prefer user.phoneNumber, then shippingAddress.phone, then any legacy buyer.phone
+        const derivedPhone = (order.buyer && (order.buyer.phoneNumber || order.buyer.phone))
+          || (order.shippingAddress && order.shippingAddress.phone)
+          || undefined;
+        const customer = {
+          email: order.buyer?.email,
+          phone: derivedPhone,
+          name: order.buyer?.name,
+        };
+        console.log('Initiating Pesapal payment with:', {
+          orderId: order._id.toString(),
+          orderNumber: order.orderNumber,
+          amount: order.totalAmount,
+          buyer: { email: customer.email, phone: customer.phone, name: customer.name },
+          method: paymentMethod
+        });
+        paymentData = await paymentService.createPesapalPayment(order, customer);
         break;
+      }
       default:
-        return res.status(400).json({ message: 'Invalid payment method' });
+        console.warn('initiate-payment invalid paymentMethod:', paymentMethod);
+        return res.status(400).json({ message: `Invalid payment method: ${paymentMethod}. Use one of: pesapal, mtn, airtel, stripe, paypal.` });
     }
 
     res.json(paymentData);
@@ -387,14 +423,19 @@ const initiatePayment = async (req, res) => {
 const verifyPayment = async (req, res) => {
   try {
     const { paymentMethod, transactionId } = req.body;
-    const order = await Order.findById(req.params.id);
+    let order = await Order.findById(req.params.id);
     
     if (!order) {
       return res.status(404).json({ message: 'Order not found' });
     }
 
+    // Ensure buyer is populated for auth
+    await order.populate('buyer', 'name email phone firebaseUid');
+
     // Check if user is authorized to verify payment for this order
-    if (order.buyer.firebaseUid !== req.user.firebaseUid) {
+    const buyerId = order.buyer && (order.buyer._id ? order.buyer._id.toString() : order.buyer.toString());
+    const requesterId = req.user && req.user._id && req.user._id.toString();
+    if (!buyerId || !requesterId || buyerId !== requesterId) {
       return res.status(403).json({ message: 'You are not authorized to verify payment for this order.' });
     }
 
@@ -408,17 +449,18 @@ const verifyPayment = async (req, res) => {
       case 'paypal':
         paymentVerification = await paymentService.verifyPayPalPayment(transactionId);
         break;
-      case 'flutterwave':
+      case 'pesapal':
       case 'mtn':
       case 'airtel':
-        paymentVerification = await paymentService.verifyFlutterwavePayment(transactionId);
+        paymentVerification = await paymentService.verifyPesapalPayment(transactionId);
         break;
       default:
         return res.status(400).json({ message: 'Invalid payment method' });
     }
 
     if (paymentVerification.success) {
-      order.paymentMethod = paymentMethod;
+      // Normalize MTN/Airtel to pesapal as the provider
+      order.paymentMethod = (paymentMethod === 'mtn' || paymentMethod === 'airtel') ? 'pesapal' : paymentMethod;
       order.paymentDetails = {
         paymentId: transactionId,
         paymentStatus: 'Confirmed',
