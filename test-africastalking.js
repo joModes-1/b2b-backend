@@ -1,4 +1,4 @@
-// Minimal script to test Africa's Talking SMS credentials
+fff// Minimal script to test Africa's Talking SMS credentials
 require('dotenv').config();
 const axios = require('axios');
 

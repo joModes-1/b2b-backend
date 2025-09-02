@@ -1,8 +1,10 @@
 const mongoose = require('mongoose');
+require('dotenv').config();
 const fs = require('fs');
 const path = require('path');
 const Product = require('./src/models/Product');
 const User = require('./src/models/User');
+const Category = require('./src/models/Category');
 
 // --- Database Connection ---
 const dbURI = process.env.MONGODB_URI;
@@ -24,6 +26,52 @@ mongoose.connect(dbURI, {
 // --- Data Seeding Logic ---
 async function seedDatabase() {
   try {
+    // 0. Seed Categories and Subcategories (idempotent upsert)
+    const categoriesData = [
+      {
+        _id: 'cat1',
+        name: 'Food & Beverages (Grains & Cereals Focus)',
+        subcategories: [
+          { _id: 'sub1-1', name: 'Grains & Cereals' },
+          { _id: 'sub1-2', name: 'Sugar & Sweeteners' },
+          { _id: 'sub1-3', name: 'Cooking Oils & Fats' },
+        ],
+      },
+      {
+        _id: 'cat2',
+        name: 'Health & Personal Care',
+        subcategories: [
+          { _id: 'sub2-1', name: 'Personal Hygiene' },
+          { _id: 'sub2-2', name: 'Beauty & Skincare' },
+          { _id: 'sub2-3', name: 'Hair Care' },
+          { _id: 'sub2-4', name: 'Health & Wellness' },
+        ],
+      },
+      {
+        _id: 'cat3',
+        name: 'Baby & Kids Products',
+        subcategories: [
+          { _id: 'sub3-1', name: 'Baby Food & Formula' },
+          { _id: 'sub3-2', name: 'Baby Diapers & Wipes' },
+          { _id: 'sub3-3', name: 'Baby Toiletries' },
+          { _id: 'sub3-4', name: 'Baby Clothing & Footwear' },
+          { _id: 'sub3-5', name: 'Baby Accessories' },
+        ],
+      },
+    ];
+
+    console.log('Upserting categories...');
+    await Category.bulkWrite(
+      categoriesData.map((c) => ({
+        updateOne: {
+          filter: { _id: c._id },
+          update: { $set: { name: c.name, subcategories: c.subcategories } },
+          upsert: true,
+        },
+      }))
+    );
+    console.log(`Categories upserted: ${categoriesData.length}`);
+
     // 1. Find a default seller
     const defaultSeller = await User.findOne({ role: 'seller' });
     if (!defaultSeller) {

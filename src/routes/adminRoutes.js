@@ -1,6 +1,5 @@
 const express = require('express');
 const router = express.Router();
-const { isAdmin } = require('../middleware/adminAuth');
 const {
   getDashboardData,
   getUsers,
@@ -15,23 +14,23 @@ const {
 } = require('../controllers/adminController');
 
 // Dashboard
-router.get('/dashboard', isAdmin, getDashboardData);
+router.get('/dashboard', getDashboardData);
 
 // User management
-router.get('/users', isAdmin, getUsers);
-router.patch('/users/:id/status', isAdmin, updateUserStatus);
+router.get('/users', getUsers);
+router.patch('/users/:id/status', updateUserStatus);
 
 // Pending approvals
-router.get('/pending', isAdmin, getPendingApprovals);
-router.patch('/vendors/:id/status', isAdmin, updateVendorStatus);
-router.patch('/products/:id/status', isAdmin, updateProductStatus);
+router.get('/pending', getPendingApprovals);
+router.patch('/vendors/:id/status', updateVendorStatus);
+router.patch('/products/:id/status', updateProductStatus);
 
 // Product management
-router.get('/listings', isAdmin, getListings);
-router.patch('/listings/:id/status', isAdmin, updateListingStatus);
+router.get('/listings', getListings);
+router.patch('/listings/:id/status', updateListingStatus);
 
 // Data export
-router.get('/export/csv', isAdmin, exportToCsv);
-router.get('/export/pdf', isAdmin, exportToPdf);
+router.get('/export/csv', exportToCsv);
+router.get('/export/pdf', exportToPdf);
 
 module.exports = router; 

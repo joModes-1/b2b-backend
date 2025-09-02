@@ -5,7 +5,13 @@ const path = require('path');
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
     // Determine the destination based on the file type
-    const dest = file.fieldname === 'profilePicture' ? 'uploads' : 'uploads/attachments';
+    let dest = 'uploads/attachments';
+    if (file.fieldname === 'profilePicture') {
+      dest = 'uploads';
+    } else if (file.fieldname === 'image') {
+      // For preset images
+      dest = 'uploads';
+    }
     cb(null, dest);
   },
   filename: function (req, file, cb) {
@@ -17,10 +23,10 @@ const storage = multer.diskStorage({
 
 // File filter
 const fileFilter = (req, file, cb) => {
-  // Accept images only
-  if (!file.originalname.match(/\.(jpg|JPG|jpeg|JPEG|png|PNG|gif|GIF)$/)) {
-    req.fileValidationError = 'Only image files are allowed!';
-    return cb(new Error('Only image files are allowed!'), false);
+  // Accept common image formats only
+  if (!file.originalname.match(/\.(jpg|jpeg|png|gif|webp|svg)$/i)) {
+    req.fileValidationError = 'Only image files (jpg, jpeg, png, gif, webp, svg) are allowed!';
+    return cb(new Error('Only image files (jpg, jpeg, png, gif, webp, svg) are allowed!'), false);
   }
   cb(null, true);
 };

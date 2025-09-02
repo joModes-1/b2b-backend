@@ -78,14 +78,18 @@ const getPopularCategories = async () => {
 // Main function to get all dashboard data
 exports.getDashboardData = async (req, res) => {
   try {
+    console.log('Admin dashboard request from user:', req.user?.email);
+    
     const [stats, recentActivities] = await Promise.all([
       getPlatformStatsInternal(),
       getActivityLogInternal(req.query.limit || 10),
     ]);
 
+    console.log('Dashboard data fetched successfully');
     res.json({ stats, recentActivities });
 
   } catch (error) {
+    console.error('Dashboard error:', error);
     res.status(500).json({ message: 'Failed to fetch dashboard data: ' + error.message });
   }
 };
@@ -363,8 +367,11 @@ exports.exportToPdf = async (req, res) => {
 
 exports.getListings = async (req, res) => {
   const { page = 1, limit = 10, status, search } = req.query;
+  const pageNum = parseInt(page, 10) || 1;
+  const limitNum = parseInt(limit, 10) || 10;
 
   try {
+    console.log('[ADMIN] getListings called', { page: pageNum, limit: limitNum, status, search });
     const query = {};
     if (status) query.status = status;
     if (search) {
@@ -373,18 +380,21 @@ exports.getListings = async (req, res) => {
 
     const listings = await Listing.find(query)
       .populate('seller', 'name')
-      .limit(limit * 1)
-      .skip((page - 1) * limit)
+      .limit(limitNum)
+      .skip((pageNum - 1) * limitNum)
       .exec();
 
     const count = await Listing.countDocuments(query);
 
-    res.json({
+    const payload = {
       listings,
-      totalPages: Math.ceil(count / limit),
-      currentPage: page,
-    });
+      pages: Math.ceil(count / limitNum),
+      currentPage: pageNum,
+    };
+    console.log('[ADMIN] getListings success', { count: listings.length, pages: payload.pages, currentPage: payload.currentPage });
+    res.json(payload);
   } catch (error) {
+    console.error('[ADMIN] getListings error:', error);
     res.status(500).json({ message: 'Failed to fetch listings: ' + error.message });
   }
 };

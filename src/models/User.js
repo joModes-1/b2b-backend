@@ -16,10 +16,13 @@ const userSchema = new mongoose.Schema({
   },
   phoneNumber: {
     type: String,
-    required: true,
+    required: false, // allow missing phone for Google Sign-In; prompt later
     unique: true,
+    sparse: true, // allow multiple docs without this field set
     validate: {
       validator: function(v) {
+        // Validate only when provided
+        if (!v) return true;
         // Basic phone number validation (adjust regex as needed)
         return /^\+?[1-9]\d{1,14}$/.test(v);
       },
@@ -62,6 +65,9 @@ const userSchema = new mongoose.Schema({
 }, {
   timestamps: true
 });
+
+// Ensure sparse unique index for phoneNumber to allow multiple docs without this field
+userSchema.index({ phoneNumber: 1 }, { unique: true, sparse: true });
 
 // Remove password when converting to JSON
 userSchema.methods.toJSON = function() {

@@ -3,9 +3,176 @@ const { setUserRole } = require('../utils/userManagement');
 const admin = require('../config/firebaseAdmin');
 const jwt = require('jsonwebtoken');
 const { generateVerificationToken, sendVerificationEmail } = require('../services/emailService');
+const { createPesapalSubaccount } = require('../services/pesapalSubaccountService');
 
-// --- STUB HANDLERS FOR MISSING ROUTES ---
-exports.login = (req, res) => res.status(501).json({ message: 'Login not implemented' });
+// --- AUTHENTICATION HANDLERS ---
+
+// Standard signup with email/password
+exports.signup = async (req, res) => {
+  try {
+    const { name, email, password, role, phoneNumber, companyName } = req.body;
+    
+    // Validate required fields
+    if (!name || !email || !password || !role) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Missing required fields: name, email, password, role' 
+      });
+    }
+
+    // Check if user already exists
+    const existingUser = await User.findOne({ 
+      $or: [{ email }, { phoneNumber }] 
+    });
+    
+    if (existingUser) {
+      return res.status(409).json({ 
+        success: false, 
+        message: 'User already exists with this email or phone number' 
+      });
+    }
+
+    // Create Firebase user
+    let firebaseUser;
+    try {
+      firebaseUser = await admin.auth().createUser({
+        email,
+        password,
+        displayName: name,
+        phoneNumber: phoneNumber || undefined
+      });
+      
+      // Set custom claims
+      await admin.auth().setCustomUserClaims(firebaseUser.uid, { role });
+    } catch (firebaseError) {
+      console.error('Firebase user creation error:', firebaseError);
+      return res.status(500).json({ 
+        success: false, 
+        message: 'Failed to create user account', 
+        error: firebaseError.message 
+      });
+    }
+
+    // Create user in MongoDB
+    const user = new User({
+      firebaseUid: firebaseUser.uid,
+      name,
+      email,
+      phoneNumber: phoneNumber || undefined,
+      role: role === 'buyer' ? 'buyer' : role,
+      companyName: companyName || '',
+      emailVerified: false,
+      phoneVerified: !phoneNumber // If no phone provided, mark as verified
+    });
+
+    await user.save();
+
+    // Create Pesapal subaccount for sellers
+    if (user.role === 'seller') {
+      try {
+        await createPesapalSubaccount(user);
+      } catch (subaccountError) {
+        console.warn('Failed to create Pesapal subaccount for seller:', subaccountError.message);
+        // Don't block registration if subaccount creation fails
+      }
+    }
+
+    // Generate JWT token
+    const token = jwt.sign(
+      { id: user._id, firebaseUid: user.firebaseUid, role: user.role },
+      process.env.JWT_SECRET,
+      { expiresIn: '7d' }
+    );
+
+    res.status(201).json({
+      success: true,
+      message: 'User created successfully',
+      token,
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        phoneNumber: user.phoneNumber,
+        role: user.role,
+        companyName: user.companyName
+      }
+    });
+
+  } catch (error) {
+    console.error('Signup error:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Error creating user account', 
+      error: error.message 
+    });
+  }
+};
+
+// Standard login with email/password
+exports.login = async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    
+    if (!email || !password) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Email and password are required' 
+      });
+    }
+
+    // Find user in MongoDB
+    const user = await User.findOne({ email });
+    if (!user) {
+      return res.status(401).json({ 
+        success: false, 
+        message: 'Invalid email or password' 
+      });
+    }
+
+    // Verify password with Firebase
+    try {
+      const firebaseUser = await admin.auth().getUserByEmail(email);
+      // Note: Firebase Admin SDK doesn't verify passwords directly
+      // For production, consider using Firebase Auth REST API or client SDK
+      
+      // Generate JWT token
+      const token = jwt.sign(
+        { id: user._id, firebaseUid: user.firebaseUid, role: user.role },
+        process.env.JWT_SECRET,
+        { expiresIn: '7d' }
+      );
+
+      res.status(200).json({
+        success: true,
+        message: 'Login successful',
+        token,
+        user: {
+          id: user._id,
+          name: user.name,
+          email: user.email,
+          phoneNumber: user.phoneNumber,
+          role: user.role,
+          companyName: user.companyName
+        }
+      });
+
+    } catch (firebaseError) {
+      console.error('Firebase auth error:', firebaseError);
+      return res.status(401).json({ 
+        success: false, 
+        message: 'Invalid email or password' 
+      });
+    }
+
+  } catch (error) {
+    console.error('Login error:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Error during login', 
+      error: error.message 
+    });
+  }
+};
 
 // --- SECURE PHONE VERIFICATION FLOW ---
 const crypto = require('crypto');
@@ -18,9 +185,11 @@ const rateLimitStore = new Map();
 exports.sendVerificationCode = async (req, res) => {
   let { phoneNumber } = req.body;
   if (!phoneNumber) return res.status(400).json({ success: false, error: 'Phone number required' });
-  // Normalize phone number to international format
-  if (phoneNumber.startsWith('0')) phoneNumber = '+254' + phoneNumber.slice(1);
-  if (!phoneNumber.startsWith('+')) return res.status(400).json({ success: false, error: 'Phone number must be in international format (e.g., +2547xxxxxxx)' });
+  // Normalize phone number to international format (Uganda: +256)
+  if (phoneNumber.startsWith('0')) phoneNumber = '+256' + phoneNumber.slice(1);
+  // Remove extra leading zeros if present
+  if (phoneNumber.startsWith('+2560')) phoneNumber = '+256' + phoneNumber.slice(5);
+  if (!phoneNumber.startsWith('+')) return res.status(400).json({ success: false, error: 'Phone number must be in international format (e.g., +2567xxxxxxx)' });
   // Rate limit: 1 code per minute per phone
   const now = Date.now();
   const lastSent = rateLimitStore.get(phoneNumber);
@@ -55,9 +224,11 @@ exports.verifyCodeAndRegister = async (req, res) => {
       received: req.body
     });
   }
-  // Normalize phone number to international format
-  if (phoneNumber.startsWith('0')) phoneNumber = '+254' + phoneNumber.slice(1);
-  if (!phoneNumber.startsWith('+')) return res.status(400).json({ success: false, error: 'Phone number must be in international format (e.g., +2547xxxxxxx)' });
+  // Normalize phone number to international format (Uganda: +256)
+  if (phoneNumber.startsWith('0')) phoneNumber = '+256' + phoneNumber.slice(1);
+  // Remove extra leading zeros if present
+  if (phoneNumber.startsWith('+2560')) phoneNumber = '+256' + phoneNumber.slice(5);
+  if (!phoneNumber.startsWith('+')) return res.status(400).json({ success: false, error: 'Phone number must be in international format (e.g., +2567xxxxxxx)' });
   const entry = phoneCodeStore.get(phoneNumber);
   const now = Date.now();
   console.log(`[verifyCodeAndRegister] Phone: ${phoneNumber}, Code: ${code}, Entry:`, entry);
@@ -92,6 +263,17 @@ exports.verifyCodeAndRegister = async (req, res) => {
       firebaseUid: firebaseUser.uid,
     });
     await user.save();
+    
+    // Create Pesapal subaccount for sellers
+    if (user.role === 'seller') {
+      try {
+        await createPesapalSubaccount(user);
+      } catch (subaccountError) {
+        console.warn('Failed to create Pesapal subaccount for seller:', subaccountError.message);
+        // Don't block registration if subaccount creation fails
+      }
+    }
+    
     res.json({ success: true, user });
   } catch (err) {
     res.status(500).json({ success: false, error: 'Failed to create user: ' + err.message });
@@ -112,9 +294,17 @@ exports.getTestCode = async (req, res) => {
   if (!phoneNumber) {
     return res.status(400).json({ error: 'Phone number is required' });
   }
-  
+
+  // Normalize to match storage key (same logic as send/verify)
+  let normalized = phoneNumber;
+  if (normalized.startsWith('0')) normalized = '+256' + normalized.slice(1);
+  if (normalized.startsWith('+2560')) normalized = '+256' + normalized.slice(5);
+  if (!normalized.startsWith('+')) {
+    return res.status(400).json({ error: 'Phone number must be in international format (e.g., +2567xxxxxxx)' });
+  }
+
   // Get the verification code from the in-memory store
-  const entry = phoneCodeStore.get(phoneNumber);
+  const entry = phoneCodeStore.get(normalized);
   
   if (!entry) {
     return res.status(400).json({ error: 'No verification code found for this phone number' });
@@ -152,6 +342,16 @@ exports.createUserAndSendVerification = async (req, res) => {
     const newUser = new User({ name, email, phoneNumber, password, role: safeRole, phoneVerified: false });
     await newUser.save();
     console.log('[createUserAndSendVerification] Created user:', newUser._id);
+
+    // Create Pesapal subaccount for sellers
+    if (newUser.role === 'seller') {
+      try {
+        await createPesapalSubaccount(newUser);
+      } catch (subaccountError) {
+        console.warn('Failed to create Pesapal subaccount for seller:', subaccountError.message);
+        // Don't block registration if subaccount creation fails
+      }
+    }
 
     // Optionally, create user in Firebase here if needed (pseudo-code)
     // const firebaseUser = await admin.auth().createUser({ uid: newUser._id.toString(), email, phoneNumber, password });
@@ -385,7 +585,7 @@ exports.completeRegistration = async (req, res) => {
         email,
         phoneNumber,
         name,
-        role: role || 'user',
+        role: role || 'buyer',
         companyName: companyName || '',
         address: address || '',
         emailVerified: false,
@@ -402,6 +602,16 @@ exports.completeRegistration = async (req, res) => {
       
       // Send verification email
       await sendVerificationEmail(email, verificationToken);
+      
+      // Create Pesapal subaccount for sellers
+      if (user.role === 'seller') {
+        try {
+          await createPesapalSubaccount(user);
+        } catch (subaccountError) {
+          console.warn('Failed to create Pesapal subaccount for seller:', subaccountError.message);
+          // Don't block registration if subaccount creation fails
+        }
+      }
     } else {
       // Update existing user
       user.name = name || user.name;
@@ -470,7 +680,7 @@ exports.googleSignIn = async (req, res) => {
 
     if (!user) {
       console.log('User not found in DB, creating a new user...');
-      const userRole = role === 'seller' ? 'seller' : 'user';
+      const userRole = role === 'seller' ? 'seller' : 'buyer';
       console.log('Assigning role:', userRole);
 
       user = new User({
@@ -488,6 +698,16 @@ exports.googleSignIn = async (req, res) => {
       // Set custom claims in Firebase
       await setUserRole(uid, [userRole]);
       console.log('Custom claims set in Firebase.');
+      
+      // Create Pesapal subaccount for sellers
+      if (user.role === 'seller') {
+        try {
+          await createPesapalSubaccount(user);
+        } catch (subaccountError) {
+          console.warn('Failed to create Pesapal subaccount for seller:', subaccountError.message);
+          // Don't block registration if subaccount creation fails
+        }
+      }
     } else {
       console.log('User found in DB:', user.email);
     }
@@ -719,5 +939,4 @@ exports.changePassword = async (req, res) => {
   }
 };
 
-// Ensure signup is defined after all functions
-exports.signup = exports.completeRegistration;
+// Remove duplicate signup assignment - already defined above

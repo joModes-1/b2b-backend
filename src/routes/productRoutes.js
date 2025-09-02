@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { verifyToken, checkRole } = require('../middleware/auth');
+const { isAdmin } = require('../middleware/adminAuth');
 const upload = require('../middleware/upload');
 const productController = require('../controllers/productController');
 
@@ -19,11 +20,17 @@ router.get('/categories/counts', productController.getCategoryCounts);
 // Get all products (public)
 router.get('/', productController.getAllProducts);
 
+// Preset images routes (put BEFORE parameterized ':id' route)
+// Get preset images by category (public)
+router.get('/preset-images', productController.getPresetImages);
+// Admin listing of preset images
+router.get('/preset-images/admin', isAdmin, productController.getPresetImagesAdmin);
+
+// Similar products (must be before ':id')
+router.get('/:id/similar', productController.getSimilarProducts);
+
 // Get single product (public)
 router.get('/:id', productController.getProduct);
-
-// Get similar products (public)
-router.get('/:id/similar', productController.getSimilarProducts);
 
 // Seller routes
 // POST /api/products - Create a new product (seller only)
@@ -37,6 +44,13 @@ router.put('/seller/:id', verifyToken, checkRole(['seller']), upload.array('imag
 
 // DELETE /api/products/seller/:id - Delete a specific product owned by the seller
 router.delete('/seller/:id', verifyToken, checkRole(['seller']), productController.deleteProduct);
+
+// Admin routes for preset images
+router.post('/preset-images', isAdmin, productController.createPresetImage);
+router.post('/preset-images/upload', isAdmin, upload.single('image'), productController.createPresetImageWithFile);
+router.put('/preset-images/:id', isAdmin, productController.updatePresetImage);
+router.put('/preset-images/:id/upload', isAdmin, upload.single('image'), productController.updatePresetImageWithFile);
+router.delete('/preset-images/:id', isAdmin, productController.deletePresetImage);
 
 // Debug route registration
 console.log('Product routes set up successfully');

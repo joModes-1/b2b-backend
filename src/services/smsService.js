@@ -3,12 +3,18 @@ const Africastalking = require('africastalking')({
   username: process.env.AFRICAS_TALKING_USERNAME,
 });
 
-const sms = Africastalking.SMS;
+const IS_TEST_MODE = process.env.TEST_MODE === 'true';
+const sms = IS_TEST_MODE ? null : Africastalking.SMS;
 
 async function sendSMS(to, message) {
   // Validate phone number format: must start with '+' and have 10-15 digits
   if (!/^\+\d{10,15}$/.test(to)) {
     throw new Error('Phone number must be in international format, e.g. +2547xxxxxxx');
+  }
+  // In TEST_MODE, do not call external provider
+  if (IS_TEST_MODE) {
+    console.log('[TEST_MODE] Mock send SMS to:', to, 'message:', message);
+    return { status: 'mocked', to, message };
   }
   try {
     console.log('Sending SMS to:', to, 'with message:', message);

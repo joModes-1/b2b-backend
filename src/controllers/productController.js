@@ -1,8 +1,22 @@
 const Product = require('../models/Product');
+const Category = require('../models/Category');
+const PresetImage = require('../models/PresetImage');
 const mongoose = require('mongoose');
 const fs = require('fs').promises;
 const path = require('path');
 const { uploadToCloudinary, deleteFromCloudinary } = require('../utils/cloudinary');
+
+// Temporary feature flag to restrict products to only seeded categories
+// Set ONLY_SEEDED_CATEGORIES=true in env to enable
+let allowedCategoryCache = { names: null, expires: 0 };
+async function getAllowedCategoryNames() {
+  const now = Date.now();
+  if (allowedCategoryCache.names && allowedCategoryCache.expires > now) return allowedCategoryCache.names;
+  const cats = await Category.find({}, 'name').lean();
+  const names = cats.map(c => c.name);
+  allowedCategoryCache = { names, expires: now + 5 * 60 * 1000 };
+  return names;
+}
 
 // Get all products (public)
 exports.getAllProducts = async (req, res) => {
@@ -14,6 +28,14 @@ exports.getAllProducts = async (req, res) => {
     const limit = Number(req.query.limit) || 20;
 
     const filters = {};
+
+    // Temporary: restrict to seeded categories if flag enabled
+    if (process.env.ONLY_SEEDED_CATEGORIES === 'true') {
+      const allowed = await getAllowedCategoryNames();
+      if (allowed && allowed.length > 0) {
+        filters.category = { ...(filters.category || {}), $in: allowed };
+      }
+    }
 
     // 1. Handle Search Term
     // Prefer MongoDB text search for better performance (uses index on name/description)
@@ -150,6 +172,60 @@ exports.getSellerProducts = async (req, res) => {
   }
 };
 
+// Update a product (seller only)
+exports.updateProduct = async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ message: 'Invalid product ID format' });
+    }
+
+    // Build update object from allowed fields
+    const allowed = ['name', 'description', 'price', 'category', 'subcategory', 'stock', 'specifications', 'features'];
+    const update = {};
+    for (const key of allowed) {
+      if (key in req.body) update[key] = req.body[key];
+    }
+
+    // Optional: handle images later; for now ignore uploaded files to unblock server
+
+    const product = await Product.findOneAndUpdate(
+      { _id: id, seller: req.user._id },
+      { $set: update },
+      { new: true }
+    );
+
+    if (!product) {
+      return res.status(404).json({ message: 'Product not found or not owned by user' });
+    }
+
+    res.json(product);
+  } catch (error) {
+    console.error('Error in updateProduct:', error);
+    res.status(500).json({ message: 'Error updating product', error: error.message });
+  }
+};
+
+// Delete a product (seller only)
+exports.deleteProduct = async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ message: 'Invalid product ID format' });
+    }
+
+    const deleted = await Product.findOneAndDelete({ _id: id, seller: req.user._id });
+    if (!deleted) {
+      return res.status(404).json({ message: 'Product not found or not owned by user' });
+    }
+
+    res.json({ message: 'Product deleted successfully' });
+  } catch (error) {
+    console.error('Error in deleteProduct:', error);
+    res.status(500).json({ message: 'Error deleting product', error: error.message });
+  }
+};
+
 // Get similar products
 exports.getSimilarProducts = async (req, res) => {
   try {
@@ -169,6 +245,117 @@ exports.getSimilarProducts = async (req, res) => {
   } catch (error) {
     console.error('Error in getSimilarProducts:', error);
     res.status(500).json({ message: 'Error fetching similar products', error: error.message });
+  }
+};
+
+// Get trending products (public)
+exports.getTrendingProducts = async (req, res) => {
+  try {
+    const limit = Number(req.query.limit) || 10;
+    // Fallback: use recently created as a proxy for trending
+    const products = await Product.find({}).sort({ createdAt: -1 }).limit(limit).lean();
+    res.json(products);
+  } catch (error) {
+    console.error('Error in getTrendingProducts:', error);
+    res.status(500).json({ message: 'Error fetching trending products', error: error.message });
+  }
+};
+
+// Get featured products (public)
+exports.getFeaturedProducts = async (req, res) => {
+  try {
+    const limit = Number(req.query.limit) || 12;
+    // If products have an isFeatured flag, prefer it; otherwise return latest
+    const query = { $or: [{ isFeatured: true }, { isFeatured: { $exists: false } }] };
+    const products = await Product.find(query).sort({ isFeatured: -1, createdAt: -1 }).limit(limit).lean();
+    res.json(products);
+  } catch (error) {
+    console.error('Error in getFeaturedProducts:', error);
+    res.status(500).json({ message: 'Error fetching featured products', error: error.message });
+  }
+};
+
+// Get product counts grouped by category (public)
+exports.getCategoryCounts = async (req, res) => {
+  try {
+    const counts = await Product.aggregate([
+      { $group: { _id: '$category', count: { $sum: 1 } } },
+      { $sort: { count: -1 } }
+    ]);
+    res.json(counts);
+  } catch (error) {
+    console.error('Error in getCategoryCounts:', error);
+    res.status(500).json({ message: 'Error fetching category counts', error: error.message });
+  }
+};
+
+// Get preset images by category and subcategory
+exports.getPresetImages = async (req, res) => {
+  try {
+    const { category, subcategory, productName } = req.query;
+    
+    // Build query filter
+    const filter = {};
+    if (category) {
+      filter.category = category;
+    }
+    if (subcategory) {
+      filter.subcategory = subcategory;
+    }
+    
+    let presetImages = [];
+    
+    // If productName is provided, search by name or tags with a more flexible approach
+    if (productName && productName.trim()) {
+      const searchTerm = productName.toLowerCase().trim();
+      // Use text search for better matching across name and tags fields
+      const textFilter = { ...filter, $text: { $search: searchTerm } };
+      
+      presetImages = await PresetImage.find(textFilter);
+      
+      // If no matching images found, return all images for the category/subcategory
+      if (presetImages.length === 0) {
+        presetImages = await PresetImage.find(filter);
+      }
+    } else {
+      // If no product name provided, return all images for the category/subcategory
+      presetImages = await PresetImage.find(filter);
+    }
+    
+    // Format images for frontend
+    const images = presetImages.map(img => ({
+      url: img.url,
+      name: img.name
+    }));
+
+    res.json({ images });
+  } catch (error) {
+    console.error('Error in getPresetImages:', error);
+    res.status(500).json({ message: 'Error fetching preset images', error: error.message });
+  }
+};
+
+// Get preset images (admin) - return full documents
+exports.getPresetImagesAdmin = async (req, res) => {
+  try {
+    const { category, subcategory, productName } = req.query;
+
+    const filter = {};
+    if (category) filter.category = category;
+    if (subcategory) filter.subcategory = subcategory;
+    if (productName && productName.trim()) {
+      const keywords = productName.toLowerCase().trim().split(' ');
+      filter.$or = [
+        { name: { $regex: keywords.join('|'), $options: 'i' } },
+        { tags: { $in: keywords } }
+      ];
+    }
+
+    const docs = await PresetImage.find(filter).sort({ createdAt: -1 }).lean();
+    res.json({ images: docs });
+  } catch (error) {
+    console.error('Error in getPresetImagesAdmin:', error);
+    res.status(500).json({ message: 'Error fetching preset images (admin)', error: error.message });
   }
 };
 
@@ -199,302 +386,256 @@ exports.createProduct = async (req, res) => {
       }
     }
 
-    // 2. Upload images to Cloudinary
+    // 2. Handle image uploads
+    const images = [];
+    
+    // Process uploaded files
     if (files && files.length > 0) {
       for (const file of files) {
-        const result = await uploadToCloudinary(file.path, 'products');
-        imageUrls.push({ url: result.secure_url, public_id: result.public_id });
-      }
-    }
-
-    // 3. Validate all required fields before creating product
-    const { name, description, price, category, productType, condition, stock } = req.body;
-    const errors = [];
-    if (!name || typeof name !== 'string' || name.trim() === '') errors.push('Product name is required.');
-    if (!description || typeof description !== 'string' || description.trim() === '') errors.push('Product description is required.');
-    if (price === undefined || isNaN(Number(price)) || Number(price) < 0) errors.push('Valid product price is required and cannot be negative.');
-    if (!category || typeof category !== 'string' || category.trim() === '') errors.push('Product category is required.');
-    if (!req.user || !req.user._id) errors.push('Seller information is missing or invalid.');
-    if (!imageUrls.length) errors.push('At least one product image is required.');
-    // Stock is optional but if provided, must be non-negative
-    if (stock !== undefined && (isNaN(Number(stock)) || Number(stock) < 0)) errors.push('Stock must be a non-negative number.');
-    // Product type and condition are optional but if provided, must be strings
-    if (productType !== undefined && typeof productType !== 'string') errors.push('Product type must be a string.');
-    if (condition !== undefined && typeof condition !== 'string') errors.push('Condition must be a string.');
-    // Features/specifications are optional, but if present, must be correct types
-    if (features && !Array.isArray(features)) errors.push('Features must be an array of strings.');
-    if (specifications && typeof specifications !== 'object') errors.push('Specifications must be an object.');
-    if (errors.length) {
-      // Clean up uploaded images if validation fails
-      if (imageUrls.length > 0) {
-        for (const image of imageUrls) {
-          try { await deleteFromCloudinary(image.public_id); } catch {}
+        try {
+          const result = await uploadToCloudinary(file.path, { folder: 'products' });
+          images.push({
+            url: result.secure_url,
+            public_id: result.public_id
+          });
+          imageUrls.push(result);
+          await fs.unlink(file.path);
+        } catch (uploadError) {
+          console.error('Error uploading image to Cloudinary:', uploadError);
+          // Clean up any images that were uploaded before the error
+          for (const uploadedImage of imageUrls) {
+            await deleteFromCloudinary(uploadedImage.public_id).catch(err => 
+              console.error('Error cleaning up image:', err)
+            );
+          }
+          return res.status(500).json({ 
+            message: 'Error uploading images', 
+            error: uploadError.message 
+          });
         }
       }
-      return res.status(400).json({ message: 'Product creation failed due to validation errors.', errors });
     }
+    
+    // Process preset images
+    let presetImages = [];
+    if (req.body.presetImages) {
+      try {
+        // Handle both single URL and array of URLs
+        if (typeof req.body.presetImages === 'string') {
+          presetImages = [req.body.presetImages];
+        } else if (Array.isArray(req.body.presetImages)) {
+          presetImages = req.body.presetImages;
+        }
+        
+        // Add preset images to the images array
+        for (const url of presetImages) {
+          images.push({
+            url: url,
+            public_id: '' // Preset images don't have public_id
+          });
+        }
+      } catch (e) {
+        console.error('Error processing preset images:', e);
+      }
+    }
+
+    // 3. Create new product with all data
     const productData = {
-      name: name.trim(),
-      description: description.trim(),
-      price: Number(price),
-      category: category.trim(),
-      productType: productType || '',
-      condition: condition || '',
-      stock: stock !== undefined ? Number(stock) : 0,
+      name: req.body.name?.trim(),
+      description: req.body.description?.trim(),
+      price: Number(req.body.price),
+      category: req.body.category?.trim(),
+      productType: req.body.productType?.trim(),
+      condition: req.body.condition?.trim(),
+      stock: Number(req.body.stock) || 0,
       specifications,
       features,
-      seller: req.user._id,
-      images: imageUrls,
+      images,
+      seller: req.user._id
     };
 
-    // 4. Save product to database
     const product = new Product(productData);
     await product.save();
 
     res.status(201).json(product);
   } catch (error) {
-    console.error('Error in createProduct:', error.message);
-    console.error('Stack Trace:', error.stack);
-    // If any error occurs, attempt to clean up images that were already uploaded to Cloudinary
-    if (imageUrls.length > 0) {
-      console.log('Error occurred, cleaning up uploaded images...');
-      for (const image of imageUrls) {
-        try {
-          await deleteFromCloudinary(image.public_id);
-        } catch (cleanupError) {
-          console.error('Error cleaning up Cloudinary image:', cleanupError);
-        }
-      }
-    }
-    res.status(500).json({ message: 'An internal server error occurred while creating the product.', error: error.message });
-  } finally {
-    // 5. Clean up temporary files from server
-    if (files && files.length > 0) {
-      for (const file of files) {
-        try {
-          await fs.unlink(file.path);
-        } catch (cleanupError) {
-          console.error('Error deleting temporary file:', cleanupError);
-        }
-      }
-    }
+    console.error('Error in createProduct:', error);
+    res.status(500).json({ message: 'Error creating product', error: error.message });
   }
 };
 
-exports.updateProduct = async (req, res) => {
-  const { id } = req.params;
-  const files = req.files;
-  const newImageUrls = [];
-
+// Create a preset image (admin only)
+exports.createPresetImage = async (req, res) => {
   try {
-    const product = await Product.findOne({ _id: id, seller: req.user._id });
-    if (!product) {
-      return res.status(404).json({ message: 'Product not found or you do not have permission to edit it.' });
+    const { category, subcategory, url, name, tags } = req.body;
+    // Validate required fields for non-file creation
+    if (!category || !category.trim()) {
+      return res.status(400).json({ message: 'Category is required' });
     }
-
-    // 1. Parse JSON fields from FormData
-    const specifications = req.body.specifications ? JSON.parse(req.body.specifications) : {};
-    const features = req.body.features ? JSON.parse(req.body.features) : [];
-    const existingImages = req.body.existingImages ? JSON.parse(req.body.existingImages) : [];
-
-    // 2. Upload new images to Cloudinary
-    if (files && files.length > 0) {
-      for (const file of files) {
-        const result = await uploadToCloudinary(file.path, 'products');
-        newImageUrls.push({ url: result.secure_url, public_id: result.public_id });
-      }
+    if (!subcategory || !subcategory.trim()) {
+      return res.status(400).json({ message: 'Subcategory is required' });
     }
-
-    // 3. Determine which old images to delete from Cloudinary
-    const oldImages = product.images || [];
-    const existingImageUrls = existingImages.map(img => img.url);
-    const imagesToDelete = oldImages.filter(img => !existingImageUrls.includes(img.url));
-
-    for (const image of imagesToDelete) {
-      if (image.public_id) {
-        await deleteFromCloudinary(image.public_id);
-      }
+    if (!name || !name.trim()) {
+      return res.status(400).json({ message: 'Name is required' });
     }
-
-    // 4. Construct the final update data
-    const { name, description, price, category, productType, condition, stock } = req.body;
-    const updateData = {
-      name,
-      description,
-      price,
+    if (!url || !url.trim()) {
+      return res.status(400).json({ message: 'Image URL is required' });
+    }
+    
+    const presetImage = new PresetImage({
       category,
-      productType,
-      condition,
-      stock,
-      specifications,
-      features,
-      images: [...existingImages, ...newImageUrls],
-    };
+      subcategory,
+      url,
+      name,
+      tags: tags || [],
+      createdBy: req.user?._id
+    });
+    
+    await presetImage.save();
+    
+    res.status(201).json(presetImage);
+  } catch (error) {
+    console.error('Error in createPresetImage:', error);
+    const status = error?.name === 'ValidationError' ? 400 : 500;
+    res.status(status).json({ message: 'Error creating preset image', error: error.message });
+  }
+};
 
-    // 5. Update product in the database
-    const updatedProduct = await Product.findByIdAndUpdate(
-      id,
-      { $set: updateData },
+// Create a preset image with file upload (admin only)
+exports.createPresetImageWithFile = async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ message: 'No image file provided' });
+    }
+    
+    // Upload image to Cloudinary
+    const result = await uploadToCloudinary(req.file.path, { folder: 'preset-images' });
+    
+    const { category, subcategory, name, tags } = req.body;
+    
+    const presetImage = new PresetImage({
+      category,
+      subcategory,
+      url: result.secure_url,
+      public_id: result.public_id,
+      name,
+      tags: tags ? tags.split(',').map(t => t.trim()).filter(Boolean) : [],
+      createdBy: req.user?._id
+    });
+    
+    await presetImage.save();
+    
+    // Clean up temporary file
+    await fs.unlink(req.file.path);
+    
+    res.status(201).json(presetImage);
+  } catch (error) {
+    console.error('Error in createPresetImageWithFile:', error);
+    
+    // Clean up temporary file if exists
+    if (req.file && req.file.path) {
+      await fs.unlink(req.file.path).catch(err => console.error('Error deleting temp file:', err));
+    }
+    
+    res.status(500).json({ message: 'Error creating preset image with file', error: error.message });
+  }
+};
+
+// Update a preset image (admin only)
+exports.updatePresetImage = async (req, res) => {
+  try {
+    const { category, subcategory, url, name, tags } = req.body;
+    
+    const presetImage = await PresetImage.findByIdAndUpdate(
+      req.params.id,
+      { category, subcategory, url, name, tags },
       { new: true, runValidators: true }
     );
-
-    res.json(updatedProduct);
-  } catch (error) {
-    console.error('Error in updateProduct:', error);
-    // Cleanup newly uploaded images if update fails
-    if (newImageUrls.length > 0) {
-      for (const image of newImageUrls) {
-        await deleteFromCloudinary(image.public_id);
-      }
-    }
-    res.status(500).json({ message: 'Error updating product', error: error.message });
-  } finally {
-    // 6. Clean up temporary files from server
-    if (files && files.length > 0) {
-      for (const file of files) {
-        await fs.unlink(file.path).catch(err => console.error('Error deleting temp file:', err));
-      }
-    }
-  }
-};
-
-// Delete product
-exports.deleteProduct = async (req, res) => {
-  try {
-    const product = await Product.findOne({ _id: req.params.id, seller: req.user._id });
-    if (!product) {
-      return res.status(404).json({ message: 'Product not found or you do not have permission to delete it.' });
-    }
-
-    // Delete associated images from Cloudinary
-    if (product.images && product.images.length > 0) {
-      for (const image of product.images) {
-        if (image.public_id) {
-          await deleteFromCloudinary(image.public_id);
-        }
-      }
-    }
-
-    await Product.findByIdAndDelete(req.params.id);
-
-    res.json({ message: 'Product deleted successfully' });
-  } catch (error) {
-    console.error('Error in deleteProduct:', error);
-    res.status(500).json({ message: 'Error deleting product', error: error.message });
-  }
-};
-
-// Delete product image
-exports.deleteProductImage = async (req, res) => {
-  try {
-    const product = await Product.findOne({
-      _id: req.params.id,
-      seller: req.user._id
-    });
-
-    if (!product) {
-      return res.status(404).json({ message: 'Product not found' });
-    }
-
-    const image = product.images.id(req.params.imageId);
-    if (!image) {
-      return res.status(404).json({ message: 'Image not found' });
-    }
-
-    // Delete image from Cloudinary
-    await deleteFromCloudinary(image.public_id);
-
-    // Remove image from product
-    product.images.pull(req.params.imageId);
-    await product.save();
-
-    res.json({ message: 'Image deleted successfully' });
-  } catch (error) {
-    console.error('Error deleting product image:', error);
-    res.status(500).json({ message: 'Error deleting product image' });
-  }
-};
-
-// In-memory cache for category counts
-let categoryCountsCache = {
-  data: null,
-  expires: 0
-};
-
-// Get product counts grouped by category (with simple in-memory cache)
-exports.getCategoryCounts = async (req, res) => {
-  try {
-    const now = Date.now();
-    // If a valid cache exists, return it immediately
-    if (categoryCountsCache.data && categoryCountsCache.expires > now) {
-      return res.json(categoryCountsCache.data);
-    }
-
-    // Get total count for 'All' category
-    const totalCount = await Product.countDocuments();
-
-    // Get counts for each category
-    const categoryData = await Product.aggregate([
-      { $unwind: "$category" },
-      { $group: { _id: "$category", count: { $sum: 1 } } },
-      { $sort: { _id: 1 } }
-    ]);
-
-    // Format the final array, starting with 'All'
-    const finalCategories = [
-      { _id: 'All', count: totalCount },
-      ...categoryData
-    ];
-
-    // Update the cache
-    categoryCountsCache = {
-      data: finalCategories,
-      expires: now + (5 * 60 * 1000) // 5 minute TTL
-    };
-
-    // Send the final array as the response
-    res.json(finalCategories);
-
-  } catch (error) {
-    console.error('Error in getCategoryCounts:', error);
-    res.status(500).json({ message: 'Error fetching category counts' });
-  }
-};
-
-// Get featured products (public) - latest 8 active products
-exports.getFeaturedProducts = async (req, res) => {
-  try {
-    const products = await Product.find({ status: 'active' })
-      .sort({ createdAt: -1 })
-      .limit(8)
-      .select('name price images category district seller')
-      .populate('seller', 'name companyName district');
     
-    res.json({
-      success: true,
-      products
-    });
+    if (!presetImage) {
+      return res.status(404).json({ message: 'Preset image not found' });
+    }
+    
+    res.json(presetImage);
   } catch (error) {
-    console.error('Error fetching featured products:', error);
-    res.status(500).json({ success: false, message: 'Server error' });
+    console.error('Error in updatePresetImage:', error);
+    res.status(500).json({ message: 'Error updating preset image', error: error.message });
   }
 };
 
-// Get trending products (public) - latest 15 active products
-exports.getTrendingProducts = async (req, res) => {
+// Update a preset image with file upload (admin only)
+exports.updatePresetImageWithFile = async (req, res) => {
   try {
-    const products = await Product.find({ status: 'active' })
-      .sort({ createdAt: -1 })
-      .limit(15)
-      .select('name price images category district seller')
-      .populate('seller', 'name companyName district');
+    const { category, subcategory, name, tags } = req.body;
     
-    res.json({
-      success: true,
-      products
-    });
+    // Find existing preset image
+    const presetImage = await PresetImage.findById(req.params.id);
+    if (!presetImage) {
+      return res.status(404).json({ message: 'Preset image not found' });
+    }
+    
+    // If a new file is uploaded, process it
+    if (req.file) {
+      // Delete old image from Cloudinary if it exists
+      if (presetImage.public_id) {
+        await deleteFromCloudinary(presetImage.public_id);
+      }
+      
+      // Upload new image to Cloudinary
+      const result = await uploadToCloudinary(req.file.path, { folder: 'preset-images' });
+      
+      // Update image URL and public_id
+      presetImage.url = result.secure_url;
+      presetImage.public_id = result.public_id;
+      
+      // Clean up temporary file
+      await fs.unlink(req.file.path);
+    }
+    
+    // Update other fields
+    presetImage.category = category || presetImage.category;
+    presetImage.subcategory = subcategory || presetImage.subcategory;
+    presetImage.name = name || presetImage.name;
+    presetImage.tags = tags ? tags.split(',').map(t => t.trim()).filter(Boolean) : presetImage.tags;
+    
+    await presetImage.save();
+    
+    res.json(presetImage);
   } catch (error) {
-    console.error('Error fetching trending products:', error);
-    res.status(500).json({ success: false, message: 'Server error' });
+    // If any error occurs, attempt to clean up images that were already uploaded to Cloudinary
+    if (req.file && req.file.path) {
+      console.log('Error occurred, cleaning up uploaded images...');
+      await fs.unlink(req.file.path).catch(err => console.error('Error deleting temp file:', err));
+      if (presetImage.public_id) {
+        await deleteFromCloudinary(presetImage.public_id).catch(err => console.error('Error deleting image from Cloudinary:', err));
+      }
+    }
+    console.error('Error in updatePresetImageWithFile:', error.message);
+    console.error('Stack Trace:', error.stack);
+    res.status(500).json({ message: 'Error updating preset image with file', error: error.message });
+  }
+};
+
+// Delete a preset image (admin only)
+exports.deletePresetImage = async (req, res) => {
+  try {
+    const presetImage = await PresetImage.findById(req.params.id);
+    
+    if (!presetImage) {
+      return res.status(404).json({ message: 'Preset image not found' });
+    }
+    
+    // Delete image from Cloudinary if public_id exists
+    if (presetImage.public_id) {
+      await deleteFromCloudinary(presetImage.public_id);
+    }
+    
+    // Delete the preset image document
+    await PresetImage.findByIdAndDelete(req.params.id);
+    
+    res.json({ message: 'Preset image deleted successfully' });
+  } catch (error) {
+    console.error('Error in deletePresetImage:', error);
+    res.status(500).json({ message: 'Error deleting preset image', error: error.message });
   }
 };

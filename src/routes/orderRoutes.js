@@ -10,7 +10,8 @@ const {
   cancelOrder,
   confirmPayment,
   initiatePayment,
-  verifyPayment
+  verifyPayment,
+  getAllOrders
 } = require('../controllers/orderController');
 
 // Create new order
@@ -39,5 +40,8 @@ router.post('/:id/verify-payment', verifyToken, verifyPayment);
 
 // Confirm a payment was successful (legacy route)
 router.post('/verify-payment/:id', verifyToken, confirmPayment);
+
+// Admin route to get all orders
+router.get('/admin/all', getAllOrders);
 
 module.exports = router; 

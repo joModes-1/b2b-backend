@@ -2,6 +2,7 @@ const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 const paypal = require('@paypal/checkout-server-sdk');
 const axios = require('axios');
 const Flutterwave = require('flutterwave-node-v3');
+const { getOrCreatePesapalSubaccount } = require('./pesapalSubaccountService');
 
 // PayPal client configuration
 let paypalClient;
@@ -239,6 +240,142 @@ async function submitPesapalOrder(data, customer) {
   };
 }
 
+// Submit a split payment order to Pesapal
+async function submitPesapalSplitPaymentOrder(data, customer, sellerSubaccountId, platformSubaccountId) {
+  const token = await getPesapalToken();
+  const ipnId = await ensurePesapalIPN();
+
+  const isOrder = !data.invoiceNumber && data.orderNumber;
+
+  const baseCallback = process.env.PESAPAL_CALLBACK_URL || `${process.env.FRONTEND_URL}/process-payment`;
+  const callbackUrl = isOrder
+    ? `${baseCallback}?order_id=${data._id}&method=pesapal`
+    : `${baseCallback}?invoice_id=${data._id}&method=pesapal`;
+
+  // Defensive: ensure required customer fields
+  const customerEmail = (customer && customer.email) || (data.buyer && data.buyer.email) || 'no-reply@ujii.com';
+  // Prefer provided phone sources then normalize to E.164 without '+' for UG
+  const rawPhone = (customer && customer.phone)
+    || (data.buyer && (data.buyer.phoneNumber || data.buyer.phone))
+    || (data.shippingAddress && data.shippingAddress.phone)
+    || null;
+  const normalizedPhone = normalizeUgPhone(rawPhone);
+  // Only use demo fallback in sandbox if no valid phone present
+  const customerPhone = normalizedPhone || (PESA_ENV === 'sandbox' ? '256700000000' : null);
+  const customerName = (customer && customer.name) || (data.buyer && data.buyer.name) || 'Ujii Customer';
+  const [firstName, ...restName] = customerName.trim().split(' ');
+  const lastName = restName.join(' ') || 'User';
+  const amountNumber = Number(data.totalAmount || data.amount || 0);
+  if (!amountNumber || amountNumber <= 0) {
+    throw new Error('Invalid amount for Pesapal order');
+  }
+
+  // Calculate split amounts (90% to seller, 10% to platform)
+  const platformCommission = amountNumber * 0.1;
+  const sellerAmount = amountNumber - platformCommission;
+
+  // Build a unified merchant reference we want Pesapal to reflect back
+  const unifiedRef = isOrder
+    ? (data.orderNumber || data._id.toString())
+    : (data.invoiceNumber || data._id.toString());
+
+  const payload = {
+    // Set id to the same as merchant_reference so Pesapal echoes it back consistently
+    id: unifiedRef,
+    currency: 'UGX',
+    amount: amountNumber,
+    description: isOrder ? `Order Payment - ${data.orderNumber}` : `Invoice Payment - ${data.invoiceNumber}`,
+    // Pesapal requires a merchant reference (your own unique reference)
+    merchant_reference: unifiedRef,
+    // Some integrations accept order_reference as well; include for compatibility
+    order_reference: unifiedRef,
+    callback_url: callbackUrl,
+    // Only include notification_id if we successfully registered IPN
+    ...(ipnId ? { notification_id: ipnId } : {}),
+    branch: 'default',
+    billing_address: {
+      email_address: customerEmail,
+      // Pesapal requires phone_number; omit if truly unavailable (non-sandbox)
+      ...(customerPhone ? { phone_number: customerPhone } : {}),
+      country_code: 'UG',
+      first_name: firstName || 'Customer',
+      middle_name: '',
+      last_name: lastName,
+      line_1: 'N/A',
+      city: 'Kampala',
+      state: 'UG',
+      postal_code: '00000',
+      zip_code: '00000',
+    },
+    // Split payment configuration
+    split_payment: {
+      subaccounts: [
+        {
+          subaccount_id: sellerSubaccountId,
+          amount: sellerAmount,
+          description: "Seller payment"
+        },
+        {
+          subaccount_id: platformSubaccountId,
+          amount: platformCommission,
+          description: "Platform commission"
+        }
+      ]
+    },
+    // Tracking references
+    order_tracking_id: undefined,
+    // Pesapal supports metadata under "metadata" key
+    metadata: isOrder ? { order_id: data._id.toString() } : { invoice_id: data._id.toString() },
+  };
+
+  console.log('Pesapal SubmitOrderRequest payload:', {
+    amount: payload.amount,
+    currency: payload.currency,
+    callback_url: payload.callback_url,
+    merchant_reference: payload.merchant_reference,
+    order_reference: payload.order_reference,
+    notification_id: payload.notification_id,
+    split_payment: payload.split_payment,
+    buyer: { email: payload.billing_address.email_address, phone: payload.billing_address.phone_number, first: payload.billing_address.first_name, last: payload.billing_address.last_name }
+  });
+  let res;
+  try {
+    res = await axios.post(
+      `${PESA_BASE_URL}/api/Transactions/SubmitOrderRequest`,
+      payload,
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      }
+    );
+    // Pesapal sometimes returns HTTP 200 with an error object in the body
+    if (res && res.data && res.data.error) {
+      const e = res.data.error;
+      const msg = (e && (e.message || e.error_message)) || 'Unknown Pesapal error';
+      console.error('Pesapal SubmitOrderRequest returned body error:', e);
+      throw new Error(`Pesapal submit order failed: ${msg}`);
+    }
+    console.log('Pesapal SubmitOrderRequest success:', res.data);
+  } catch (err) {
+    // Surface Pesapal error details for easier debugging
+    const details = err.response && err.response.data ? JSON.stringify(err.response.data) : err.message;
+    console.error('Pesapal SubmitOrderRequest error:', details);
+    throw new Error(`Pesapal submit order failed: ${details}`);
+  }
+
+  // Pesapal returns order_tracking_id and redirect_url
+  const { order_tracking_id, redirect_url } = res.data;
+  if (!order_tracking_id || !redirect_url) {
+    throw new Error('Pesapal did not return a payment link. Please try again.');
+  }
+  return {
+    paymentLink: redirect_url,
+    transactionRef: order_tracking_id,
+  };
+}
+
 async function getPesapalTransactionStatus(orderTrackingId) {
   const token = await getPesapalToken();
   const res = await axios.get(
@@ -348,17 +485,53 @@ exports.createPayPalOrder = async (data) => {
 // Create Pesapal payment
 exports.createPesapalPayment = async (data, customer) => {
   try {
+    // Check if this is an order with a seller
+    if (data.seller) {
+      // Try to get seller's Pesapal subaccount
+      try {
+        const sellerSubaccountId = await getOrCreatePesapalSubaccount(data.seller._id || data.seller);
+        const platformSubaccountId = process.env.PESAPAL_PLATFORM_SUBACCOUNT_ID;
+        
+        // If both subaccounts exist, use split payment
+        if (sellerSubaccountId && platformSubaccountId) {
+          const result = await submitPesapalSplitPaymentOrder(data, customer, sellerSubaccountId, platformSubaccountId);
+          // Ensure frontend gets the expected merchant reference (orderNumber/invoiceNumber)
+          const isOrder = !data.invoiceNumber && data.orderNumber;
+          const merchantRef = isOrder
+            ? (data.orderNumber || data._id.toString())
+            : (data.invoiceNumber || data._id.toString());
+          const paymentResponse = {
+            paymentLink: result.paymentLink,
+            transactionRef: result.transactionRef,
+            merchant_reference: merchantRef,
+          };
+          
+          console.log('Pesapal split payment response:', paymentResponse);
+          
+          return paymentResponse;
+        }
+      } catch (subaccountError) {
+        console.warn('Failed to create/get seller subaccount, falling back to normal payment:', subaccountError.message);
+        // Fall back to normal payment if subaccount creation fails
+      }
+    }
+    
+    // Fallback to normal payment if no seller or subaccount creation fails
     const result = await submitPesapalOrder(data, customer);
     // Ensure frontend gets the expected merchant reference (orderNumber/invoiceNumber)
     const isOrder = !data.invoiceNumber && data.orderNumber;
     const merchantRef = isOrder
       ? (data.orderNumber || data._id.toString())
       : (data.invoiceNumber || data._id.toString());
-    return {
-      paymentLink: result.redirect_url,
-      transactionRef: result.order_tracking_id,
+    const paymentResponse = {
+      paymentLink: result.paymentLink,
+      transactionRef: result.transactionRef,
       merchant_reference: merchantRef,
     };
+    
+    console.log('Pesapal payment response:', paymentResponse);
+    
+    return paymentResponse;
   } catch (error) {
     console.error('Error creating Pesapal payment:', error);
     throw error;
@@ -403,18 +576,57 @@ exports.verifyPayPalPayment = async (orderId) => {
 exports.verifyPesapalPayment = async (orderTrackingId) => {
   try {
     console.log('Verifying Pesapal payment with orderTrackingId:', orderTrackingId);
-    const status = await getPesapalTransactionStatus(orderTrackingId);
-    console.log('Pesapal GetTransactionStatus response:', status);
-    const success = status && (status.payment_status_description === 'Completed' || status.status_code === 1 || status.result_code === 0);
+    const tx = await getPesapalTransactionStatus(orderTrackingId);
+    console.log('Pesapal GetTransactionStatus normalized response:', tx);
     return {
-      success,
+      success: !!tx.success,
       transactionId: orderTrackingId,
-      status: status && (status.payment_status_description || status.status_description || status.status),
-      raw: status,
+      status: tx.success ? 'COMPLETED' : 'PENDING',
+      raw: tx,
     };
   } catch (error) {
     const msg = error && error.message ? error.message : String(error);
     console.error('Pesapal verification error:', msg);
     throw new Error(`Pesapal verification error: ${msg}`);
+  }
+};
+
+// Refund a Pesapal transaction
+exports.refundPesapalPayment = async (transactionId, amount, reason) => {
+  try {
+    const token = await getPesapalToken();
+    
+    const payload = {
+      transaction_id: transactionId,
+      amount: amount,
+      reason: reason || "Refund requested by customer"
+    };
+    
+    const res = await axios.post(
+      `${PESA_BASE_URL}/api/Transactions/RefundTransaction`,
+      payload,
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      }
+    );
+    
+    if (res.data && res.data.status === 'success') {
+      return {
+        success: true,
+        refundId: res.data.refund_id,
+        status: res.data.status,
+        message: res.data.message
+      };
+    } else {
+      throw new Error('Pesapal refund failed: ' + (res.data.message || 'Unknown error'));
+    }
+  } catch (error) {
+    const msg = error.response && error.response.data ? 
+      JSON.stringify(error.response.data) : error.message;
+    console.error('Pesapal refund error:', msg);
+    throw new Error(`Pesapal refund error: ${msg}`);
   }
 };

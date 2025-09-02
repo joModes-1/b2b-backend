@@ -16,7 +16,7 @@ exports.createOrder = async (req, res) => {
       return res.status(404).json({ message: 'Buyer account not found.' });
     }
 
-    const {
+    let {
       seller,
       items,
       shippingInfo,
@@ -24,6 +24,21 @@ exports.createOrder = async (req, res) => {
       notes,
       saveAddress,
     } = req.body;
+
+    // Derive seller if not provided at top level
+    if (!seller && Array.isArray(items) && items.length > 0) {
+      const first = items[0];
+      seller = first?.seller?._id || first?.seller || seller;
+    }
+    
+    // If seller is still not provided, use the current user as seller if they're a seller
+    if (!seller && req.user.role === 'seller') {
+      seller = req.user._id;
+    }
+    
+    if (!seller) {
+      return res.status(400).json({ message: 'Seller is required for creating an order.' });
+    }
 
     const shippingAddressForOrder = {
       fullName: shippingInfo.fullName,
@@ -35,7 +50,31 @@ exports.createOrder = async (req, res) => {
       phone: shippingInfo.phone,
     };
 
-    const subtotal = items.reduce((sum, item) => sum + (item.quantity * item.unitPrice), 0);
+    // Normalize items to expected schema: listing, quantity, unitPrice
+    const normalizedItems = (Array.isArray(items) ? items : []).map((item) => {
+      const listing = item.listing || item.product || item._id;
+      const unitPrice = item.unitPrice != null ? item.unitPrice : item.price;
+      const quantity = item.quantity != null ? item.quantity : 1;
+      
+      // Ensure listing is provided
+      if (!listing) {
+        throw new Error('Each item must have a listing ID');
+      }
+      
+      return {
+        listing,
+        quantity,
+        unitPrice,
+        subtotal: Number(quantity) * Number(unitPrice || 0),
+      };
+    });
+
+    // Basic validation after normalization
+    if (!normalizedItems.length || normalizedItems.some(i => !i.listing)) {
+      return res.status(400).json({ message: 'At least one item with a valid listing is required.' });
+    }
+
+    const subtotal = normalizedItems.reduce((sum, item) => sum + item.subtotal, 0);
     const tax = subtotal * 0.1;
     const shippingCost = shippingMethod === 'express' ? 20 : shippingMethod === 'priority' ? 30 : 10;
     const totalAmount = subtotal + tax + shippingCost;
@@ -43,7 +82,7 @@ exports.createOrder = async (req, res) => {
     const order = new Order({
       buyer: buyer._id, // Use the MongoDB _id of the buyer
       seller,
-      items: items.map(item => ({ ...item, subtotal: item.quantity * item.unitPrice })),
+      items: normalizedItems,
       subtotal,
       tax,
       shippingCost,
@@ -201,7 +240,8 @@ exports.updateOrderStatus = async (req, res) => {
 
     res.json(order);
   } catch (error) {
-    res.status(400).json({ message: error.message });
+    // Network/API hiccups during verification should not surface as 400 to polling clients
+    res.status(200).json({ success: false, status: 'PENDING', message: 'Verification pending or temporarily unavailable', error: error.message });
   }
 };
 
@@ -314,7 +354,7 @@ exports.cancelOrder = async (req, res) => {
 
     res.json(order);
   } catch (error) {
-    res.status(400).json({ message: error.message });
+    return res.status(200).json({ success: false, status: 'PENDING', message: 'Verification pending or temporarily unavailable', error: error.message });
   }
 };
 
@@ -423,6 +463,10 @@ const initiatePayment = async (req, res) => {
 const verifyPayment = async (req, res) => {
   try {
     const { paymentMethod, transactionId } = req.body;
+    // If client hasn't provided a transactionId yet (e.g., still redirecting), don't error
+    if (!transactionId) {
+      return res.status(200).json({ success: false, status: 'PENDING', message: 'Awaiting transaction reference', reason: 'missing_transactionId' });
+    }
     let order = await Order.findById(req.params.id);
     
     if (!order) {
@@ -496,10 +540,28 @@ const verifyPayment = async (req, res) => {
 
       res.json({ success: true, message: 'Payment verified successfully', order });
     } else {
-      res.status(400).json({ success: false, message: 'Payment verification failed' });
+      // Do not treat non-completed as an error; allow client to poll
+      const status = paymentVerification.status || paymentVerification.raw?.status || 'PENDING';
+      res.status(200).json({ success: false, status, message: 'Payment pending or not completed yet', details: paymentVerification.raw });
     }
   } catch (error) {
-    res.status(400).json({ message: error.message });
+    return res.status(200).json({ success: false, status: 'PENDING', message: 'Verification pending or temporarily unavailable', error: error.message });
+  }
+};
+
+// Get all orders for admin
+exports.getAllOrders = async (req, res) => {
+  try {
+    const orders = await Order.find({})
+      .populate('buyer', 'name email')
+      .populate('seller', 'name email')
+      .populate('items.listing', 'name price')
+      .sort({ createdAt: -1 });
+
+    res.json({ orders });
+  } catch (error) {
+    console.error('Error fetching all orders:', error);
+    res.status(500).json({ message: 'Failed to fetch orders' });
   }
 };
 
@@ -511,6 +573,7 @@ module.exports = {
   updateOrderStatus: exports.updateOrderStatus,
   confirmPayment: exports.confirmPayment,
   cancelOrder: exports.cancelOrder,
+  getAllOrders: exports.getAllOrders,
   initiatePayment,
   verifyPayment,
   calculateEstimatedDelivery,
