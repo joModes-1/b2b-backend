@@ -208,20 +208,22 @@ exports.updateOrderStatus = async (req, res) => {
   try {
     const { status, note } = req.body;
     const order = await Order.findById(req.params.id)
-      .populate('buyer', 'email')
-      .populate('seller', 'email');
+      .populate('buyer', 'email firebaseUid')
+      .populate('seller', 'email firebaseUid');
 
     if (!order) {
       return res.status(404).json({ message: 'Order not found' });
     }
 
     // Check if user is authorized to update this order (seller or admin only)
-    if (order.seller.firebaseUid !== req.user.firebaseUid && !req.user.isAdmin) {
+    const isSellerByUid = order.seller && order.seller.firebaseUid && (order.seller.firebaseUid === req.user.firebaseUid);
+    const isSellerById = order.seller && order.seller._id && req.user._id && (order.seller._id.toString() === req.user._id.toString());
+    if (!isSellerByUid && !isSellerById && !req.user.isAdmin) {
       return res.status(403).json({ message: 'Not authorized' });
     }
 
     // Update status
-    order.updateStatus(status, note, req.user);
+    order.updateStatus(status, note, req.user._id || req.user);
 
     // Add tracking number if provided
     if (req.body.trackingNumber) {
@@ -230,18 +232,25 @@ exports.updateOrderStatus = async (req, res) => {
 
     await order.save();
 
-    // Send email notifications
-    const statusMessage = getStatusMessage(status);
-    await sendEmail(
-      order.buyer.email,
-      `Order ${order.orderNumber} Status Update`,
-      `Your order status has been updated to ${status}. ${statusMessage}`
-    );
+    // Send email notifications (best-effort)
+    try {
+      const statusMessage = getStatusMessage(status);
+      if (order.buyer && order.buyer.email) {
+        await sendEmail(
+          order.buyer.email,
+          `Order ${order.orderNumber} Status Update`,
+          `Your order status has been updated to ${status}. ${statusMessage}`
+        );
+      }
+    } catch (emailErr) {
+      // Log and continue
+      console.error('Email notification error (status update):', emailErr.message);
+    }
 
     res.json(order);
   } catch (error) {
-    // Network/API hiccups during verification should not surface as 400 to polling clients
-    res.status(200).json({ success: false, status: 'PENDING', message: 'Verification pending or temporarily unavailable', error: error.message });
+    console.error('Update order status error:', error);
+    res.status(500).json({ message: 'Error updating order status', error: error.message });
   }
 };
 

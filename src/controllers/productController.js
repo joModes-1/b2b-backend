@@ -305,20 +305,28 @@ exports.getPresetImages = async (req, res) => {
     
     let presetImages = [];
     
-    // If productName is provided, search by name or tags with a more flexible approach
+    // If productName is provided, perform a more specific search.
     if (productName && productName.trim()) {
-      const searchTerm = productName.toLowerCase().trim();
-      // Use text search for better matching across name and tags fields
-      const textFilter = { ...filter, $text: { $search: searchTerm } };
+      const searchTerm = productName.trim();
       
-      presetImages = await PresetImage.find(textFilter);
-      
-      // If no matching images found, return all images for the category/subcategory
-      if (presetImages.length === 0) {
-        presetImages = await PresetImage.find(filter);
+      // To find images that match all terms, we can use regex.
+      // This is more intuitive for users than MongoDB's text search for this use case.
+      const keywords = searchTerm.split(' ').filter(k => k.length > 0);
+      const regexQueries = keywords.map(k => ({ 
+        $or: [
+          { name: { $regex: k, $options: 'i' } },
+          { tags: { $regex: k, $options: 'i' } }
+        ]
+      }));
+
+      if (regexQueries.length > 0) {
+        filter.$and = regexQueries;
       }
+      
+      presetImages = await PresetImage.find(filter);
+
     } else {
-      // If no product name provided, return all images for the category/subcategory
+      // If no product name provided, return all images for the category/subcategory.
       presetImages = await PresetImage.find(filter);
     }
     

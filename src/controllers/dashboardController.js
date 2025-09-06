@@ -16,8 +16,13 @@ exports.getSellerStats = async (req, res) => {
       },
       {
         $facet: {
-          // Total orders count by status
+          // Total orders count by status (regardless of paymentStatus)
           ordersByStatus: [
+            {
+              $match: {
+                status: { $nin: ['cancelled', 'refunded'] }
+              }
+            },
             {
               $group: {
                 _id: '$status',
@@ -26,14 +31,14 @@ exports.getSellerStats = async (req, res) => {
               }
             }
           ],
-          // Revenue by month (last 6 months)
+          // Revenue by month (last 6 months) - delivered only
           revenueByMonth: [
             {
               $match: {
                 createdAt: {
                   $gte: new Date(new Date().setMonth(new Date().getMonth() - 6))
                 },
-                status: { $nin: ['cancelled', 'refunded'] }
+                status: 'delivered'
               }
             },
             {
@@ -53,8 +58,9 @@ exports.getSellerStats = async (req, res) => {
               }
             }
           ],
-          // Recent orders
+          // Recent orders - show all active (exclude cancelled/refunded)
           recentOrders: [
+            { $match: { status: { $nin: ['cancelled', 'refunded'] } } },
             { $sort: { createdAt: -1 } },
             { $limit: 5 },
             {
@@ -72,21 +78,18 @@ exports.getSellerStats = async (req, res) => {
               }
             }
           ],
-          // Total metrics
+          // Total metrics - delivered only
           totals: [
+            {
+              $match: {
+                status: 'delivered'
+              }
+            },
             {
               $group: {
                 _id: null,
                 totalOrders: { $sum: 1 },
-                totalRevenue: {
-                  $sum: {
-                    $cond: [
-                      { $not: { $in: ['$status', ['cancelled', 'refunded']] } },
-                      '$totalAmount',
-                      0
-                    ]
-                  }
-                },
+                totalRevenue: { $sum: '$totalAmount' },
                 averageOrderValue: { $avg: '$totalAmount' }
               }
             }
@@ -100,7 +103,8 @@ exports.getSellerStats = async (req, res) => {
       {
         $match: {
           seller: sellerId,
-          status: { $nin: ['cancelled', 'refunded'] }
+          status: { $nin: ['cancelled', 'refunded'] },
+          paymentStatus: 'paid'
         }
       },
       {
