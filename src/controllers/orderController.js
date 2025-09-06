@@ -147,7 +147,12 @@ exports.createOrder = async (req, res) => {
 // Get all orders for buyer
 exports.getBuyerOrders = async (req, res) => {
   try {
-    const orders = await Order.find({ 'buyer.firebaseUid': req.user.firebaseUid })
+    // Orders store buyer as ObjectId (see createOrder), so match by ObjectId
+    const buyerId = req.user && req.user._id;
+    if (!buyerId) {
+      return res.status(400).json({ message: 'Unable to resolve buyer id from token' });
+    }
+    const orders = await Order.find({ buyer: buyerId })
       .populate('seller', 'name email')
       .populate('items.listing')
       .sort({ createdAt: -1 });
@@ -174,9 +179,12 @@ exports.getVendorOrders = async (req, res) => {
 exports.getOrder = async (req, res) => {
   try {
     const order = await Order.findById(req.params.id)
-      .populate('buyer', 'name email')
+      .populate('buyer', 'name email phone phoneNumber')
       .populate('seller', 'name email')
-      .populate('items.listing')
+      .populate({
+        path: 'items.listing',
+        select: 'name title images image thumbnail mainImage price',
+      })
       .populate('statusHistory.updatedBy', 'name');
 
     if (!order) {
@@ -213,6 +221,11 @@ exports.updateOrderStatus = async (req, res) => {
 
     if (!order) {
       return res.status(404).json({ message: 'Order not found' });
+    }
+
+    // Prevent updates on terminal states
+    if (['cancelled', 'delivered', 'refunded'].includes(order.status)) {
+      return res.status(400).json({ message: `Order in '${order.status}' state cannot be edited.` });
     }
 
     // Check if user is authorized to update this order (seller or admin only)
@@ -326,8 +339,8 @@ exports.confirmPayment = async (req, res) => {
 exports.cancelOrder = async (req, res) => {
   try {
     const order = await Order.findById(req.params.id)
-      .populate('buyer', 'email')
-      .populate('seller', 'email');
+      .populate('buyer', 'email firebaseUid')
+      .populate('seller', 'email firebaseUid');
 
     if (!order) {
       return res.status(404).json({ message: 'Order not found' });
@@ -338,32 +351,42 @@ exports.cancelOrder = async (req, res) => {
       return res.status(400).json({ message: 'Order cannot be cancelled at this stage' });
     }
 
-    // Verify user is either buyer or vendor
-    if (order.buyer.firebaseUid !== req.user.firebaseUid &&
-        order.seller.firebaseUid !== req.user.firebaseUid &&
-        !req.user.isAdmin) {
+    // Verify user is either buyer, seller, or admin
+    const isBuyerByUid = order.buyer && order.buyer.firebaseUid && (order.buyer.firebaseUid === req.user.firebaseUid);
+    const isBuyerById = order.buyer && order.buyer._id && req.user._id && (order.buyer._id.toString() === req.user._id.toString());
+    const isSellerByUid = order.seller && order.seller.firebaseUid && (order.seller.firebaseUid === req.user.firebaseUid);
+    const isSellerById = order.seller && order.seller._id && req.user._id && (order.seller._id.toString() === req.user._id.toString());
+    if (!isBuyerByUid && !isBuyerById && !isSellerByUid && !isSellerById && !req.user.isAdmin) {
       return res.status(403).json({ message: 'Not authorized' });
     }
 
-    order.updateStatus('cancelled', req.body.note || 'Order cancelled', req.user);
+    order.updateStatus('cancelled', req.body.note || 'Order cancelled', req.user._id || req.user);
     await order.save();
 
-    // Send email notifications
-    await sendEmail(
-      order.buyer.email,
-      `Order ${order.orderNumber} Cancelled`,
-      'Your order has been cancelled.'
-    );
-
-    await sendEmail(
-      order.seller.email,
-      `Order ${order.orderNumber} Cancelled`,
-      'An order has been cancelled.'
-    );
+    // Send email notifications (best-effort)
+    try {
+      if (order.buyer && order.buyer.email) {
+        await sendEmail(
+          order.buyer.email,
+          `Order ${order.orderNumber} Cancelled`,
+          'Your order has been cancelled.'
+        );
+      }
+      if (order.seller && order.seller.email) {
+        await sendEmail(
+          order.seller.email,
+          `Order ${order.orderNumber} Cancelled`,
+          'An order has been cancelled.'
+        );
+      }
+    } catch (emailErr) {
+      console.error('Email notification error (cancel):', emailErr.message);
+    }
 
     res.json(order);
   } catch (error) {
-    return res.status(200).json({ success: false, status: 'PENDING', message: 'Verification pending or temporarily unavailable', error: error.message });
+    console.error('Cancel order error:', error);
+    return res.status(500).json({ message: 'Error cancelling order', error: error.message });
   }
 };
 

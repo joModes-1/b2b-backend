@@ -58,9 +58,9 @@ exports.getSellerStats = async (req, res) => {
               }
             }
           ],
-          // Recent orders - show all active (exclude cancelled/refunded)
+          // Recent orders - include cancelled (exclude refunded only)
           recentOrders: [
-            { $match: { status: { $nin: ['cancelled', 'refunded'] } } },
+            { $match: { status: { $ne: 'refunded' } } },
             { $sort: { createdAt: -1 } },
             { $limit: 5 },
             {
