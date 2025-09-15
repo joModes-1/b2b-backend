@@ -1,6 +1,10 @@
 const User = require('../models/User');
 const Order = require('../models/Order');
 const { sendEmail } = require('../utils/emailService');
+const { generateDeliveryQR } = require('../utils/qrGenerator');
+// Simple in-memory throttle to avoid repeated verify-payment hits within a short window
+const verifyThrottle = new Map(); // key: `${orderId}:${transactionId || 'none'}` -> timestamp
+const VERIFY_THROTTLE_MS = 4000;
 
 // Create a new order
 exports.createOrder = async (req, res) => {
@@ -23,6 +27,7 @@ exports.createOrder = async (req, res) => {
       shippingMethod,
       notes,
       saveAddress,
+      paymentMethod,
     } = req.body;
 
     // Derive seller if not provided at top level
@@ -89,12 +94,28 @@ exports.createOrder = async (req, res) => {
       totalAmount,
       shippingAddress: shippingAddressForOrder,
       shippingMethod,
+      // Persist what the buyer selected. For MTN/Airtel we keep their choice; verification may later normalize to 'pesapal'.
+      paymentMethod: paymentMethod || null,
       notes,
       estimatedDeliveryDate: calculateEstimatedDelivery(shippingMethod),
     });
     
 
     await order.save();
+
+    // Generate QR code for delivery confirmation
+    try {
+      const qrData = await generateDeliveryQR(order._id.toString());
+      order.deliveryConfirmation = {
+        qrCode: qrData.qrCode,
+        deliveryToken: qrData.deliveryToken,
+        deliveryUrl: qrData.deliveryUrl
+      };
+      await order.save();
+    } catch (qrError) {
+      console.error('QR code generation error:', qrError);
+      // Don't fail order creation if QR generation fails
+    }
 
     if (saveAddress) {
       const userAddress = {
@@ -114,20 +135,40 @@ exports.createOrder = async (req, res) => {
     // Send email notifications. This is wrapped in a try-catch so that a
     // failure in the email service does not prevent the order from being created.
     try {
-      if (order.seller && order.seller.email) {
-        await sendEmail(
-          order.seller.email,
-          'New Order Received',
-          `You have received a new order (${order.orderNumber}) worth $${totalAmount}`
-        );
+      const method = (order.paymentMethod || '').toLowerCase();
+      const isMobileMoney = method === 'pesapal' || method === 'mtn' || method === 'airtel';
+
+      // For mobile money, do NOT notify the seller at creation time.
+      // Seller will be notified after payment verification in verifyPayment().
+      if (!isMobileMoney) {
+        if (order.seller && order.seller.email) {
+          const paymentMethodDisplay = {
+            'cod': 'Cash on Delivery',
+            'paypal': 'PayPal',
+            'stripe': 'Stripe (Card)',
+            'pesapal': 'Pesapal (Mobile Money)',
+            'mtn': 'MTN Mobile Money',
+            'airtel': 'Airtel Money'
+          };
+          const methodName = paymentMethodDisplay[method] || method || 'Not specified';
+          
+          await sendEmail(
+            order.seller.email,
+            'New Order Received',
+            `You have received a new order (${order.orderNumber}) worth $${totalAmount}. Payment method: ${methodName}`
+          );
+        }
       }
 
-      if (order.buyer && order.buyer.email) {
-        await sendEmail(
-          order.buyer.email,
-          'Order Confirmation',
-          `Your order (${order.orderNumber}) has been placed successfully`
-        );
+      // For mobile money, also do NOT email the buyer at creation time.
+      if (!isMobileMoney) {
+        if (order.buyer && order.buyer.email) {
+          await sendEmail(
+            order.buyer.email,
+            'Order Confirmation',
+            `Your order (${order.orderNumber}) has been placed successfully`
+          );
+        }
       }
     } catch (emailError) {
       console.error('--- Email Service Error ---');
@@ -307,10 +348,20 @@ exports.confirmPayment = async (req, res) => {
     // Send email notifications in a try-catch block
      try {
       if (order.seller && order.seller.email) {
+        const paymentMethodDisplay = {
+          'cod': 'Cash on Delivery',
+          'paypal': 'PayPal',
+          'stripe': 'Stripe (Card)',
+          'pesapal': 'Pesapal (Mobile Money)',
+          'mtn': 'MTN Mobile Money',
+          'airtel': 'Airtel Money'
+        };
+        const methodName = paymentMethodDisplay[order.paymentMethod] || order.paymentMethod || 'Not specified';
+        
         await sendEmail(
           order.seller.email,
           `Payment Confirmed for Order #${order.orderNumber}`,
-          `Payment has been confirmed for order ${order.orderNumber}.`
+          `Payment has been confirmed for order ${order.orderNumber}. Payment method: ${methodName}. Total amount: $${order.totalAmount}`
         );
       }
 
@@ -448,6 +499,11 @@ const initiatePayment = async (req, res) => {
       return res.status(403).json({ message: 'You are not authorized to initiate payment for this order.' });
     }
 
+    // If already confirmed previously, short-circuit to avoid duplicate emails and logs
+    if (order.paymentDetails && String(order.paymentDetails.paymentStatus).toLowerCase() === 'confirmed') {
+      return res.json({ success: true, message: 'Payment already confirmed', order });
+    }
+
     const paymentService = require('../services/paymentService');
     
     let paymentData;
@@ -499,6 +555,16 @@ const verifyPayment = async (req, res) => {
     if (!transactionId) {
       return res.status(200).json({ success: false, status: 'PENDING', message: 'Awaiting transaction reference', reason: 'missing_transactionId' });
     }
+
+    // Basic throttle to reduce spam to provider and logs
+    const throttleKey = `${req.params.id}:${transactionId}`;
+    const lastAt = verifyThrottle.get(throttleKey) || 0;
+    const now = Date.now();
+    if (now - lastAt < VERIFY_THROTTLE_MS) {
+      return res.status(200).json({ success: false, status: 'PENDING', message: 'Verification in progress (throttled)' });
+    }
+    verifyThrottle.set(throttleKey, now);
+
     let order = await Order.findById(req.params.id);
     
     if (!order) {
@@ -513,6 +579,11 @@ const verifyPayment = async (req, res) => {
     const requesterId = req.user && req.user._id && req.user._id.toString();
     if (!buyerId || !requesterId || buyerId !== requesterId) {
       return res.status(403).json({ message: 'You are not authorized to verify payment for this order.' });
+    }
+
+    // If already confirmed previously, short-circuit to avoid duplicate emails and logs
+    if (order.paymentDetails && String(order.paymentDetails.paymentStatus).toLowerCase() === 'confirmed') {
+      return res.json({ success: true, message: 'Payment already confirmed', order });
     }
 
     const paymentService = require('../services/paymentService');
@@ -551,10 +622,20 @@ const verifyPayment = async (req, res) => {
       // Send email notifications
       try {
         if (order.seller && order.seller.email) {
+          const paymentMethodDisplay = {
+            'cod': 'Cash on Delivery',
+            'paypal': 'PayPal',
+            'stripe': 'Stripe (Card)',
+            'pesapal': 'Pesapal (Mobile Money)',
+            'mtn': 'MTN Mobile Money',
+            'airtel': 'Airtel Money'
+          };
+          const methodName = paymentMethodDisplay[order.paymentMethod] || order.paymentMethod || 'Not specified';
+          
           await sendEmail(
             order.seller.email,
             `Payment Confirmed for Order #${order.orderNumber}`,
-            `Payment has been confirmed for order ${order.orderNumber}.`
+            `Payment has been confirmed for order ${order.orderNumber}. Payment method: ${methodName}. Total amount: $${order.totalAmount}`
           );
         }
 
@@ -570,6 +651,8 @@ const verifyPayment = async (req, res) => {
         // Don't throw error as payment verification should not fail due to email issues
       }
 
+      // Clear throttle on success to allow immediate subsequent reads
+      verifyThrottle.delete(throttleKey);
       res.json({ success: true, message: 'Payment verified successfully', order });
     } else {
       // Do not treat non-completed as an error; allow client to poll

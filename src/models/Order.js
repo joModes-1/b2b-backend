@@ -74,6 +74,18 @@ const orderSchema = new mongoose.Schema({
     zipCode: String,
     country: String
   },
+  paymentMethod: {
+    type: String,
+    enum: ['cod', 'paypal', 'stripe', 'pesapal', 'mtn', 'airtel'],
+    default: null
+  },
+  deliveryConfirmation: {
+    qrCode: String, // Base64 encoded QR code image
+    deliveryToken: String, // Secure token for delivery confirmation
+    deliveryUrl: String, // URL that the QR code points to
+    confirmedAt: Date,
+    confirmedBy: String // Delivery person identifier
+  },
   shippingMethod: {
     type: String,
     enum: ['standard', 'express', 'priority'],

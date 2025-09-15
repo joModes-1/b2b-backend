@@ -5,6 +5,8 @@ const dotenv = require('dotenv');
 const authRoutes = require('./src/routes/authRoutes');
 const productRoutes = require('./src/routes/productRoutes');
 const orderRoutes = require('./src/routes/orderRoutes');
+const deliveryRoutes = require('./src/routes/deliveryRoutes');
+const qrRoutes = require('./src/routes/qrRoutes');
 
 dotenv.config();
 
@@ -40,6 +42,8 @@ app.use('/api/orders/stripe-webhook', express.raw({ type: 'application/json' }))
 app.use('/api/auth', authRoutes);
 app.use('/api/products', productRoutes);
 app.use('/api/orders', orderRoutes);
+app.use('/api/delivery', deliveryRoutes);
+app.use('/api/qr', qrRoutes);
 
 // 404 catch-all for unknown routes
 app.use((req, res, next) => {
