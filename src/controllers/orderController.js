@@ -6,6 +6,24 @@ const { generateDeliveryQR } = require('../utils/qrGenerator');
 const verifyThrottle = new Map(); // key: `${orderId}:${transactionId || 'none'}` -> timestamp
 const VERIFY_THROTTLE_MS = 4000;
 
+// Haversine formula to calculate distance between two coordinates
+function calculateDistance(lat1, lon1, lat2, lon2) {
+  const R = 6371; // Radius of Earth in kilometers
+  const dLat = toRad(lat2 - lat1);
+  const dLon = toRad(lon2 - lon1);
+  const a = 
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
+    Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  const distance = R * c;
+  return distance; // Distance in kilometers
+}
+
+function toRad(deg) {
+  return deg * (Math.PI / 180);
+}
+
 // Create a new order
 exports.createOrder = async (req, res) => {
   console.log('--- Executing updated createOrder function ---');
@@ -80,8 +98,48 @@ exports.createOrder = async (req, res) => {
     }
 
     const subtotal = normalizedItems.reduce((sum, item) => sum + item.subtotal, 0);
-    const tax = subtotal * 0.1;
-    const shippingCost = shippingMethod === 'express' ? 20 : shippingMethod === 'priority' ? 30 : 10;
+    const tax = 0; // No tax for COD
+    
+    // Calculate distance-based shipping cost
+    let shippingCost = 0;
+    try {
+      // Get seller's location
+      const sellerUser = await User.findById(seller);
+      const sellerLocation = sellerUser?.businessLocation?.coordinates?.coordinates; // [lng, lat]
+      const buyerLocation = shippingInfo.coordinates; // Should be [lng, lat] from frontend
+      
+      if (sellerLocation && buyerLocation && 
+          Array.isArray(sellerLocation) && sellerLocation.length === 2 &&
+          Array.isArray(buyerLocation) && buyerLocation.length === 2) {
+        // Calculate distance using Haversine formula
+        const distance = calculateDistance(
+          sellerLocation[1], sellerLocation[0], // lat, lng
+          buyerLocation[1], buyerLocation[0]    // lat, lng
+        );
+        
+        // Calculate shipping cost based on distance
+        // Base rate: 5000 UGX for first 5km, then 1000 UGX per additional km
+        const baseRate = 5000;
+        const perKmRate = 1000;
+        const freeKm = 5;
+        
+        if (distance <= freeKm) {
+          shippingCost = baseRate;
+        } else {
+          shippingCost = baseRate + Math.ceil(distance - freeKm) * perKmRate;
+        }
+        
+        console.log(`Distance: ${distance.toFixed(2)}km, Shipping cost: ${shippingCost} UGX`);
+      } else {
+        // Default shipping cost if locations not available
+        shippingCost = 5000;
+        console.log('Using default shipping cost - location data incomplete');
+      }
+    } catch (error) {
+      console.error('Error calculating shipping cost:', error);
+      shippingCost = 5000; // Default fallback
+    }
+    
     const totalAmount = subtotal + tax + shippingCost;
 
     const order = new Order({
@@ -109,7 +167,8 @@ exports.createOrder = async (req, res) => {
       order.deliveryConfirmation = {
         qrCode: qrData.qrCode,
         deliveryToken: qrData.deliveryToken,
-        deliveryUrl: qrData.deliveryUrl
+        deliveryUrl: qrData.deliveryUrl,
+        qrPayload: qrData.qrPayload
       };
       await order.save();
     } catch (qrError) {
@@ -244,6 +303,22 @@ exports.getOrder = async (req, res) => {
     if (!isBuyer && !isSeller && !req.user.isAdmin) {
       console.log('Authorization failed - user not buyer, seller, or admin');
       return res.status(403).json({ message: 'Not authorized' });
+    }
+
+    // Ensure QR code exists (self-healing for legacy/missed generation)
+    try {
+      if (!order.deliveryConfirmation || !order.deliveryConfirmation.qrCode) {
+        const qrData = await generateDeliveryQR(order._id.toString());
+        order.deliveryConfirmation = {
+          qrCode: qrData.qrCode,
+          deliveryToken: qrData.deliveryToken,
+          deliveryUrl: qrData.deliveryUrl,
+          qrPayload: qrData.qrPayload
+        };
+        await order.save();
+      }
+    } catch (qrAutoError) {
+      console.warn('Auto-generate QR in getOrder failed (non-fatal):', qrAutoError.message);
     }
 
     res.json(order);

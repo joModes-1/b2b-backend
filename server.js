@@ -5,8 +5,19 @@ const dotenv = require('dotenv');
 const authRoutes = require('./src/routes/authRoutes');
 const productRoutes = require('./src/routes/productRoutes');
 const orderRoutes = require('./src/routes/orderRoutes');
-const deliveryRoutes = require('./src/routes/deliveryRoutes');
+const deliveryRoutes = require('./routes/deliveryRoutes');
 const qrRoutes = require('./src/routes/qrRoutes');
+const locationRoutes = require('./src/routes/locationRoutes');
+const webhookRoutes = require('./src/routes/webhookRoutes');
+const payoutRoutes = require('./src/routes/payoutRoutes');
+const driverRoutes = require('./src/routes/driverRoutes');
+const miniShopRoutes = require('./src/routes/miniShopRoutes');
+const reviewRoutes = require('./src/routes/reviewRoutes');
+const searchRoutes = require('./src/routes/searchRoutes');
+const transactionRoutes = require('./src/routes/transactionRoutes');
+const refundRoutes = require('./src/routes/refundRoutes');
+const adminRoutes = require('./src/routes/adminRoutes');
+const dashboardRoutes = require('./src/routes/dashboardRoutes');
 
 dotenv.config();
 
@@ -44,6 +55,17 @@ app.use('/api/products', productRoutes);
 app.use('/api/orders', orderRoutes);
 app.use('/api/delivery', deliveryRoutes);
 app.use('/api/qr', qrRoutes);
+app.use('/api/location', locationRoutes);
+app.use('/api/webhook', webhookRoutes);
+app.use('/api/payouts', payoutRoutes);
+app.use('/api/driver', driverRoutes);
+app.use('/api/minishop', miniShopRoutes);
+app.use('/api/reviews', reviewRoutes);
+app.use('/api/search', searchRoutes);
+app.use('/api/transactions', transactionRoutes);
+app.use('/api/refunds', refundRoutes);
+app.use('/api/admin', adminRoutes);
+app.use('/api/dashboard', dashboardRoutes);
 
 // 404 catch-all for unknown routes
 app.use((req, res, next) => {

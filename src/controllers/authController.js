@@ -209,7 +209,19 @@ exports.sendVerificationCode = async (req, res) => {
 
 // Verify code and register
 exports.verifyCodeAndRegister = async (req, res) => {
-  let { phoneNumber, code, name, email, password, role } = req.body;
+  let { phoneNumber, code, name, email, password, role, businessLocation, deliveryAddress, businessInfo, businessPhone } = req.body;
+  
+  // Log incoming data for debugging
+  console.log('[verifyCodeAndRegister] Incoming data:', {
+    phoneNumber,
+    code,
+    name,
+    email,
+    passwordLength: password?.length,
+    role,
+    hasBusinessLocation: !!businessLocation,
+    hasDeliveryAddress: !!deliveryAddress
+  });
   const missingFields = [];
   if (!phoneNumber) missingFields.push('phoneNumber');
   if (!code) missingFields.push('code');
@@ -244,24 +256,123 @@ exports.verifyCodeAndRegister = async (req, res) => {
   phoneCodeStore.delete(phoneNumber); // One-time use
   let firebaseUser;
   try {
+    // Ensure displayName is not too long (Firebase limit is 100 characters)
+    const displayName = name ? name.substring(0, 100) : email.split('@')[0];
+    
+    // Ensure password meets Firebase requirements
+    if (password && password.length > 72) {
+      return res.status(400).json({ success: false, error: 'Password is too long. Maximum 72 characters allowed.' });
+    }
+    
+    // Log the exact data being sent to Firebase
+    console.log('[verifyCodeAndRegister] Firebase user data:', {
+      phoneNumber,
+      email,
+      passwordLength: password ? password.length : 0,
+      displayName,
+      displayNameLength: displayName.length
+    });
+    
     firebaseUser = await admin.auth().createUser({
       phoneNumber,
       email,
       password,
-      displayName: name,
+      displayName,
     });
     await admin.auth().setCustomUserClaims(firebaseUser.uid, { role });
   } catch (err) {
-    return res.status(500).json({ success: false, error: 'Failed to create Firebase user: ' + err.message });
+    console.error('[verifyCodeAndRegister] Firebase error:', err);
+    // Provide more specific error messages for common Firebase errors
+    let errorMessage = 'Failed to create Firebase user: ';
+    if (err.code === 'auth/invalid-password') {
+      errorMessage = 'Password must be at least 6 characters long';
+    } else if (err.code === 'auth/email-already-exists') {
+      errorMessage = 'An account with this email already exists';
+    } else if (err.code === 'auth/phone-number-already-exists') {
+      errorMessage = 'An account with this phone number already exists';
+    } else if (err.code === 'auth/invalid-phone-number') {
+      errorMessage = 'Invalid phone number format';
+    } else if (err.code === 'auth/invalid-email') {
+      errorMessage = 'Invalid email address';
+    } else if (err.message && err.message.includes('TOO_LONG')) {
+      errorMessage = 'One or more fields are too long. Please check your input.';
+    } else {
+      errorMessage += err.message || 'Unknown error';
+    }
+    return res.status(500).json({ success: false, error: errorMessage });
   }
   try {
-    const user = new User({
+    // Helper to convert client location object to GeoJSON-compatible schema
+    const toGeoLocation = (loc) => {
+      if (!loc) return undefined;
+      // Accept shapes like { coordinates: { lat, lng } } or { lat, lng } or { lat, lon }
+      const lat = (loc?.coordinates && typeof loc.coordinates.lat === 'number') ? loc.coordinates.lat
+                : (typeof loc?.lat === 'number' ? loc.lat : undefined);
+      const lng = (loc?.coordinates && typeof loc.coordinates.lng === 'number') ? loc.coordinates.lng
+                : (typeof loc?.lng === 'number' ? loc.lng
+                  : (typeof loc?.lon === 'number' ? loc.lon : undefined));
+
+      // Robust fallbacks to satisfy required fields
+      const formatted = (loc.formattedAddress || loc.display_name || '').trim();
+      const address = (loc.address && loc.address.trim()) || formatted || 'Unknown Address';
+      // Try best-effort for city: use provided, else state, else 'Unknown'
+      const city = (loc.city && String(loc.city).trim())
+                || (loc.town && String(loc.town).trim())
+                || (loc.village && String(loc.village).trim())
+                || (loc.state && String(loc.state).trim())
+                || 'Unknown';
+      // Country: default to Uganda since our client search is restricted to UG
+      const country = (loc.country && String(loc.country).trim()) || 'Uganda';
+
+      const geo = {
+        address,
+        city,
+        state: loc.state || '',
+        country,
+        postalCode: loc.postalCode || '',
+        coordinates: {
+          type: 'Point',
+          // Default to Kampala if missing to avoid validation errors
+          coordinates: [
+            (typeof lng === 'number' ? lng : 32.5825),
+            (typeof lat === 'number' ? lat : 0.3476)
+          ]
+        },
+        placeId: loc.placeId || '',
+        formattedAddress: formatted
+      };
+      return geo;
+    };
+
+    const finalRole = role === 'buyer' ? 'buyer' : role;
+    const userPayload = {
       name,
       email,
       phoneNumber,
-      role: role === 'buyer' ? 'buyer' : role,
+      role: finalRole,
       firebaseUid: firebaseUser.uid,
-    });
+    };
+
+    // For sellers, businessLocation is required
+    if (finalRole === 'seller') {
+      if (!businessLocation) {
+        return res.status(400).json({ success: false, error: 'Business location is required for seller registration.' });
+      }
+      const primaryGeo = toGeoLocation(businessLocation);
+      userPayload.businessLocation = primaryGeo;
+      // Sellers use their business location as delivery location when they buy
+      userPayload.deliveryAddress = primaryGeo;
+    } else {
+      // For buyers, deliveryAddress is required
+      if (!deliveryAddress) {
+        return res.status(400).json({ success: false, error: 'Delivery location is required for buyer registration.' });
+      }
+      const primaryGeo = toGeoLocation(deliveryAddress);
+      userPayload.deliveryAddress = primaryGeo;
+      // Buyers don't have businessLocation
+    }
+
+    const user = new User(userPayload);
     await user.save();
     
     // Create Pesapal subaccount for sellers
@@ -690,6 +801,9 @@ exports.googleSignIn = async (req, res) => {
         role: userRole,
         profilePicture: picture,
         verified: true, // Google-verified users can be considered verified
+        emailVerified: true,
+        phoneVerified: false  // They can add phone later
+        // Don't initialize location fields - they'll be added when user updates profile
       });
 
       await user.save();
@@ -719,10 +833,14 @@ exports.googleSignIn = async (req, res) => {
       { expiresIn: '1h' }
     );
 
+    console.log('Sending response with user role:', user.role);
+    const userResponse = user.toJSON();
+    console.log('User response object:', userResponse);
+    
     res.status(200).json({ 
       message: 'Authentication successful.',
       token: appToken,
-      user: user.toJSON() 
+      user: userResponse
     });
 
   } catch (error) {

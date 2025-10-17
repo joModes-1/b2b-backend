@@ -29,6 +29,16 @@ exports.getAllProducts = async (req, res) => {
 
     const filters = {};
 
+    // Ensure we only show active products by default so counts match visible items
+    // To include inactive/draft items (e.g., admin views), pass includeInactive=true
+    if (req.query.includeInactive !== 'true') {
+      // Include products explicitly active OR with no status (legacy docs)
+      filters.$or = [
+        { status: 'active' },
+        { status: { $exists: false } }
+      ];
+    }
+
     // Temporary: restrict to seeded categories if flag enabled
     if (process.env.ONLY_SEEDED_CATEGORIES === 'true') {
       const allowed = await getAllowedCategoryNames();
@@ -181,7 +191,8 @@ exports.updateProduct = async (req, res) => {
     }
 
     // Build update object from allowed fields
-    const allowed = ['name', 'description', 'price', 'category', 'subcategory', 'stock', 'specifications', 'features'];
+    // Allow toggling of flags like isTrending / isHotDeal and discount info
+    const allowed = ['name', 'description', 'price', 'category', 'subcategory', 'stock', 'specifications', 'features', 'isTrending', 'isHotDeal', 'originalPrice', 'discountPercentage', 'hotDealType', 'discountAmount', 'buyQuantity', 'getFreeQuantity', 'dealDescription', 'dealStartDate', 'dealEndDate'];
     const update = {};
     for (const key of allowed) {
       if (key in req.body) update[key] = req.body[key];
@@ -252,9 +263,28 @@ exports.getSimilarProducts = async (req, res) => {
 exports.getTrendingProducts = async (req, res) => {
   try {
     const limit = Number(req.query.limit) || 10;
-    // Fallback: use recently created as a proxy for trending
-    const products = await Product.find({}).sort({ createdAt: -1 }).limit(limit).lean();
-    res.json(products);
+    const filters = { $or: [ { status: 'active' }, { status: { $exists: false } } ] };
+
+    // 1) Prefer manually marked trending products
+    const flagged = await Product.find({ ...filters, isTrending: true })
+      .sort({ updatedAt: -1 })
+      .limit(limit)
+      .lean();
+
+    // 2) If not enough, backfill with latest active products not already included
+    let products = flagged;
+    if (flagged.length < limit) {
+      const remaining = limit - flagged.length;
+      const flaggedIds = new Set(flagged.map(p => String(p._id)));
+      const backfill = await Product.find(filters)
+        .sort({ createdAt: -1 })
+        .limit(limit * 2) // fetch extra to filter out duplicates safely
+        .lean();
+      const extras = backfill.filter(p => !flaggedIds.has(String(p._id))).slice(0, remaining);
+      products = [...flagged, ...extras];
+    }
+
+    res.json({ products });
   } catch (error) {
     console.error('Error in getTrendingProducts:', error);
     res.status(500).json({ message: 'Error fetching trending products', error: error.message });
@@ -278,11 +308,26 @@ exports.getFeaturedProducts = async (req, res) => {
 // Get product counts grouped by category (public)
 exports.getCategoryCounts = async (req, res) => {
   try {
-    const counts = await Product.aggregate([
-      { $group: { _id: '$category', count: { $sum: 1 } } },
-      { $sort: { count: -1 } }
-    ]);
-    res.json(counts);
+    // Get all categories from Category collection
+    const categories = await Category.find({});
+    
+    // Create a result object with all categories
+    const result = { data: {} };
+    
+    // Get product counts for each category
+    for (const category of categories) {
+      const count = await Product.countDocuments({ 
+        category: category.name,
+        $or: [ { status: 'active' }, { status: { $exists: false } } ]
+      });
+      result.data[category.name] = count;
+    }
+    
+    // Sort categories by count (descending)
+    const sortedEntries = Object.entries(result.data).sort(([,a], [,b]) => b - a);
+    result.data = Object.fromEntries(sortedEntries);
+    
+    res.json(result);
   } catch (error) {
     console.error('Error in getCategoryCounts:', error);
     res.status(500).json({ message: 'Error fetching category counts', error: error.message });
@@ -373,6 +418,33 @@ exports.createProduct = async (req, res) => {
   const imageUrls = []; // To store details of uploaded images for potential cleanup
 
   try {
+    // 0. Validate seller has required business information
+    const User = require('../models/User');
+    const seller = await User.findOne({ firebaseUid: req.user.firebaseUid });
+    
+    if (!seller) {
+      return res.status(404).json({ message: 'Seller not found' });
+    }
+
+    const missingFields = [];
+    
+    // Check for phone number
+    if (!seller.phoneNumber) {
+      missingFields.push('phoneNumber');
+    }
+    
+    // Check for business location
+    if (!seller.businessLocation || !seller.businessLocation.formattedAddress) {
+      missingFields.push('businessLocation');
+    }
+    
+    if (missingFields.length > 0) {
+      return res.status(400).json({ 
+        message: 'Please complete your business information before creating products',
+        missingFields,
+        requiresCompletion: true
+      });
+    }
     // 1. Parse JSON fields from FormData with error handling
     let specifications = {};
     if (req.body.specifications) {
@@ -459,7 +531,8 @@ exports.createProduct = async (req, res) => {
       specifications,
       features,
       images,
-      seller: req.user._id
+      seller: req.user._id,
+      isTrending: req.body.isTrending || false
     };
 
     const product = new Product(productData);
@@ -621,6 +694,45 @@ exports.updatePresetImageWithFile = async (req, res) => {
     console.error('Error in updatePresetImageWithFile:', error.message);
     console.error('Stack Trace:', error.stack);
     res.status(500).json({ message: 'Error updating preset image with file', error: error.message });
+  }
+};
+
+// @desc    Get hot deals products
+// @route   GET /api/products/hot-deals
+// @access  Public
+exports.getHotDeals = async (req, res) => {
+  try {
+    const page = Number(req.query.page) || 1;
+    const limit = Number(req.query.limit) || 12;
+    const skip = (page - 1) * limit;
+
+    const hotDeals = await Product.find({
+      isHotDeal: true,
+      $or: [ { status: 'active' }, { status: { $exists: false } } ]
+    })
+    .populate('seller', 'displayName email profilePicture')
+    .sort({ discountPercentage: -1, createdAt: -1 })
+    .skip(skip)
+    .limit(limit);
+
+    const total = await Product.countDocuments({
+      isHotDeal: true,
+      $or: [ { status: 'active' }, { status: { $exists: false } } ]
+    });
+
+    res.json({
+      products: hotDeals,
+      pagination: {
+        currentPage: page,
+        totalPages: Math.ceil(total / limit),
+        totalProducts: total,
+        hasNextPage: page < Math.ceil(total / limit),
+        hasPrevPage: page > 1
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching hot deals:', error);
+    res.status(500).json({ message: 'Error fetching hot deals', error: error.message });
   }
 };
 

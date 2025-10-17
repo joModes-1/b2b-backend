@@ -64,7 +64,59 @@ const productSchema = new mongoose.Schema({
     type: String,
     enum: ['active', 'inactive', 'draft'],
     default: 'active'
-  }
+  },
+  isHotDeal: {
+    type: Boolean,
+    default: false
+  },
+  hotDealType: {
+    type: String,
+    enum: ['percentage', 'buy_x_get_y', 'free_delivery', 'fixed_amount'],
+    required: false
+  },
+  isTrending: {
+    type: Boolean,
+    default: false
+  },
+  originalPrice: {
+    type: Number,
+    required: false,
+    min: [0, 'Original price cannot be negative']
+  },
+  discountPercentage: {
+    type: Number,
+    required: false,
+    min: [0, 'Discount percentage cannot be negative'],
+    max: [100, 'Discount percentage cannot exceed 100']
+  },
+  discountAmount: {
+    type: Number,
+    required: false,
+    min: [0, 'Discount amount cannot be negative']
+  },
+  buyQuantity: {
+    type: Number,
+    required: false,
+    min: [1, 'Buy quantity must be at least 1']
+  },
+  getFreeQuantity: {
+    type: Number,
+    required: false,
+    min: [1, 'Get free quantity must be at least 1']
+  },
+  dealDescription: {
+    type: String,
+    required: false,
+    maxlength: [200, 'Deal description cannot exceed 200 characters']
+  },
+  dealStartDate: {
+    type: Date,
+    required: false
+  },
+  dealEndDate: {
+    type: Date,
+    required: false
+  },
 }, {
   timestamps: true
 });

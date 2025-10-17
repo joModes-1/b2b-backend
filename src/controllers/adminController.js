@@ -1,6 +1,29 @@
 const User = require('../models/User');
-const Order = require('../models/Order');
 const Listing = require('../models/Listing');
+const Product = require('../models/Product');
+const Review = require('../models/Review');
+const RefundRequest = require('../models/RefundRequest');
+const MiniShop = require('../models/MiniShop');
+const mongoose = require('mongoose');
+
+// Safely get models to avoid OverwriteModelError
+const getOrderModel = () => {
+  try {
+    return mongoose.model('Order');
+  } catch (error) {
+    // If model doesn't exist, require it
+    return require('../../models/Order');
+  }
+};
+
+const getDeliveryPersonModel = () => {
+  try {
+    return mongoose.model('DeliveryPerson');
+  } catch (error) {
+    // If model doesn't exist, require it
+    return require('../../models/DeliveryPerson');
+  }
+};
 const { Parser } = require('json2csv');
 const PDFDocument = require('pdfkit');
 
@@ -12,6 +35,8 @@ const getPlatformStatsInternal = async () => {
   startOfWeek.setDate(today.getDate() - today.getDay());
   const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
 
+  const Order = getOrderModel();
+  
   return {
     users: await User.countDocuments({ role: 'buyer' }),
     sellers: await User.countDocuments({ role: 'seller' }),
@@ -37,6 +62,7 @@ const getPlatformStatsInternal = async () => {
 
 // Helper function to calculate revenue for a given period
 const getRevenueForPeriod = async (startDate) => {
+  const Order = getOrderModel();
   const matchStage = {
     status: { $nin: ['cancelled', 'refunded'] },
   };
@@ -54,6 +80,7 @@ const getRevenueForPeriod = async (startDate) => {
 
 // Helper to get top performing sellers
 const getTopPerformingVendors = async () => {
+  const Order = getOrderModel();
   return await Order.aggregate([
     { $match: { status: { $nin: ['cancelled', 'refunded'] } } },
     { $group: { _id: '$seller', totalRevenue: { $sum: '$totalAmount' }, totalOrders: { $sum: 1 } } },
@@ -91,6 +118,22 @@ exports.getDashboardData = async (req, res) => {
   } catch (error) {
     console.error('Dashboard error:', error);
     res.status(500).json({ message: 'Failed to fetch dashboard data: ' + error.message });
+  }
+};
+
+// Get platform statistics only
+exports.getStats = async (req, res) => {
+  try {
+    console.log('Admin stats request from user:', req.user?.email);
+    
+    const stats = await getPlatformStatsInternal();
+
+    console.log('Stats data fetched successfully');
+    res.json(stats);
+
+  } catch (error) {
+    console.error('Stats error:', error);
+    res.status(500).json({ message: 'Failed to fetch stats data: ' + error.message });
   }
 };
 
@@ -248,6 +291,7 @@ exports.updateListingStatus = async (req, res) => {
 
 // Internal function to get activity log
 const getActivityLogInternal = async (limit = 10) => {
+  const Order = getOrderModel();
   // Combine recent activities from different collections
   const [newUsers, newOrders, newProducts] = await Promise.all([
     User.find()
@@ -299,6 +343,7 @@ exports.exportToCsv = async (req, res) => {
         fields = ['_id', 'name', 'email', 'role', 'status', 'createdAt'];
         break;
       case 'orders':
+        const Order = getOrderModel();
         data = await Order.find()
           .populate('buyer', 'name email')
           .populate('seller', 'name email');
@@ -334,6 +379,7 @@ exports.exportToPdf = async (req, res) => {
         data = await User.find().select('-password');
         break;
       case 'orders':
+        const Order = getOrderModel();
         data = await Order.find()
           .populate('buyer', 'name email')
           .populate('seller', 'name email');
@@ -401,6 +447,7 @@ exports.getListings = async (req, res) => {
 
 module.exports = {
   getDashboardData: exports.getDashboardData,
+  getStats: exports.getStats,
   getUsers: exports.getUsers,
   getListings: exports.getListings,
   getPendingApprovals: exports.getPendingApprovals,

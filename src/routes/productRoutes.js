@@ -14,6 +14,9 @@ router.get('/trending', productController.getTrendingProducts);
 // Get featured products (public)
 router.get('/featured', productController.getFeaturedProducts);
 
+// Get hot deals products (public)
+router.get('/hot-deals', productController.getHotDeals);
+
 // Get product counts grouped by category (public)
 router.get('/categories/counts', productController.getCategoryCounts);
 

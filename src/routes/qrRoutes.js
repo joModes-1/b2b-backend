@@ -37,7 +37,8 @@ router.post('/generate/:orderId', verifyToken, async (req, res) => {
         order.deliveryConfirmation = {
           qrCode: qrData.qrCode,
           deliveryToken: qrData.deliveryToken,
-          deliveryUrl: qrData.deliveryUrl
+          deliveryUrl: qrData.deliveryUrl,
+          qrPayload: qrData.qrPayload
         };
         await order.save();
       } catch (qrError) {

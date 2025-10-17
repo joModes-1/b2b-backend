@@ -21,11 +21,59 @@ exports.getProfile = (req, res) => {
 // Update user profile
 exports.updateProfile = async (req, res) => {
   try {
-    const { name } = req.body;
+    const { name, phoneNumber, businessLocation, deliveryAddress, businessInfo } = req.body;
     const updateData = {};
+
+    // Helper to convert client location object to GeoJSON-compatible schema
+    const toGeoLocation = (loc) => {
+      if (!loc) return undefined;
+      const lat = (loc?.coordinates && typeof loc.coordinates.lat === 'number') ? loc.coordinates.lat
+                : (typeof loc?.lat === 'number' ? loc.lat : undefined);
+      const lng = (loc?.coordinates && typeof loc.coordinates.lng === 'number') ? loc.coordinates.lng
+                : (typeof loc?.lng === 'number' ? loc.lng
+                  : (typeof loc?.lon === 'number' ? loc.lon : undefined));
+      const formatted = (loc.formattedAddress || loc.display_name || '').trim();
+      const addressStr = (loc.address && String(loc.address).trim()) || formatted || 'Unknown Address';
+      const cityStr = (loc.city && String(loc.city).trim())
+                   || (loc.town && String(loc.town).trim())
+                   || (loc.village && String(loc.village).trim())
+                   || (loc.state && String(loc.state).trim())
+                   || 'Unknown';
+      const countryStr = (loc.country && String(loc.country).trim()) || 'Uganda';
+      return {
+        address: addressStr,
+        city: cityStr,
+        state: loc.state || '',
+        country: countryStr,
+        postalCode: loc.postalCode || '',
+        coordinates: {
+          type: 'Point',
+          coordinates: [
+            (typeof lng === 'number' ? lng : 32.5825),
+            (typeof lat === 'number' ? lat : 0.3476)
+          ]
+        },
+        placeId: loc.placeId || '',
+        formattedAddress: formatted
+      };
+    };
 
     // Build the update object with top-level fields
     if (name) updateData.name = name;
+    if (phoneNumber) updateData.phoneNumber = phoneNumber;
+    if (businessInfo) updateData.businessInfo = businessInfo;
+
+    // If a businessLocation is provided, convert and also mirror to deliveryAddress
+    if (businessLocation) {
+      const geo = toGeoLocation(businessLocation);
+      updateData.businessLocation = geo;
+      updateData.deliveryAddress = geo; // mirror for consistency across app
+    }
+
+    // If a deliveryAddress is provided directly, convert and set it
+    if (deliveryAddress) {
+      updateData.deliveryAddress = toGeoLocation(deliveryAddress);
+    }
 
     // Find the user by Firebase UID and update their profile
     // Using { new: true } returns the modified document
@@ -39,7 +87,7 @@ exports.updateProfile = async (req, res) => {
       return res.status(404).json({ message: 'User not found in our system.' });
     }
 
-    res.json(updatedUser);
+    res.json({ user: updatedUser });
 
   } catch (error) {
     console.error('Error in updateProfile:', error);

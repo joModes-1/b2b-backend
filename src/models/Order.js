@@ -59,7 +59,7 @@ const orderSchema = new mongoose.Schema({
   },
   status: {
     type: String,
-    enum: ['pending', 'confirmed', 'processing', 'shipped', 'delivered', 'cancelled', 'refunded'],
+    enum: ['pending', 'confirmed', 'processing', 'delivered', 'cancelled', 'refunded'],
     default: 'pending'
   },
   paymentStatus: {
@@ -68,11 +68,14 @@ const orderSchema = new mongoose.Schema({
     default: 'pending'
   },
   shippingAddress: {
+    fullName: String,
     street: String,
     city: String,
     state: String,
     zipCode: String,
-    country: String
+    country: String,
+    phone: String,
+    coordinates: [Number] // [longitude, latitude] for distance calculation
   },
   paymentMethod: {
     type: String,
@@ -80,11 +83,16 @@ const orderSchema = new mongoose.Schema({
     default: null
   },
   deliveryConfirmation: {
-    qrCode: String, // Base64 encoded QR code image
-    deliveryToken: String, // Secure token for delivery confirmation
-    deliveryUrl: String, // URL that the QR code points to
     confirmedAt: Date,
-    confirmedBy: String // Delivery person identifier
+    confirmedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User'
+    },
+    // QR data for delivery confirmation
+    qrCode: String,               // base64 data URL for QR image
+    deliveryToken: String,        // secure token embedded in QR payload
+    deliveryUrl: String,          // optional legacy link (kept for backward compatibility)
+    qrPayload: String             // JSON payload encoded in the QR
   },
   shippingMethod: {
     type: String,

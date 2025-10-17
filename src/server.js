@@ -14,6 +14,8 @@ const profileRoutes = require('./routes/profileRoutes');
 const dashboardRoutes = require('./routes/dashboardRoutes');
 const adminRoutes = require('./routes/adminRoutes');
 const categoryRoutes = require('./routes/categoryRoutes');
+const driverRoutes = require('./routes/driverRoutes');
+const deliveryRoutes = require('../routes/deliveryRoutes');
 
 // Debug environment variables
 console.log('Checking environment variables:');
@@ -69,6 +71,8 @@ app.use('/api/categories', categoryRoutes);
 app.use('/api/profile', profileRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/driver', driverRoutes);
+app.use('/api/delivery', deliveryRoutes);
 
 // Debug route registration
 console.log('Routes registered successfully');

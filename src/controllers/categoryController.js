@@ -51,6 +51,37 @@ exports.getCategories = async (req, res) => {
   }
 };
 
+// @desc    Get categories with product counts (including 0 count categories)
+// @route   GET /api/categories/with-counts
+// @access  Public
+exports.getCategoriesWithCounts = async (req, res) => {
+  try {
+    // Get all categories from Category collection
+    const categories = await Category.find({});
+    
+    // Get product counts for each category
+    const categoryCountsPromises = categories.map(async (category) => {
+      const count = await Product.countDocuments({ 
+        category: category.name,
+        status: 'active'
+      });
+      return {
+        _id: category._id,
+        name: category.name,
+        subcategories: category.subcategories,
+        productCount: count
+      };
+    });
+
+    const categoriesWithCounts = await Promise.all(categoryCountsPromises);
+    
+    res.json(categoriesWithCounts);
+  } catch (err) {
+    console.error('Error fetching categories with counts:', err);
+    res.status(500).json({ message: 'Failed to fetch categories with counts', error: err.message });
+  }
+};
+
 // @desc    Create a new category with subcategories
 // @route   POST /api/categories
 // @access  Admin
